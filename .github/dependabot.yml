@@ -1,0 +1,11 @@
+# 依赖与 GitHub Actions 更新（保持 SHA pin 不过时）
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly

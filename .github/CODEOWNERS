@@ -1,0 +1,4 @@
+# 发布关键路径需 owner 审查（供应链安全：防 workflow/发布配置被静默修改）
+
+.github/workflows/** @zzwtsy
+package.json @zzwtsy
