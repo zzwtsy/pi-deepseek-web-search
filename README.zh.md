@@ -1,5 +1,9 @@
 # pi-deepseek-web-search
 
+[![npm version](https://img.shields.io/npm/v/pi-deepseek-web-search)](https://www.npmjs.com/package/pi-deepseek-web-search)
+[![npm downloads](https://img.shields.io/npm/dw/pi-deepseek-web-search)](https://www.npmjs.com/package/pi-deepseek-web-search)
+[![license](https://img.shields.io/npm/l/pi-deepseek-web-search)](LICENSE)
+
 一个 [pi](https://github.com/earendil-works/pi) 扩展：为 pi 会话中的任意模型提供 **DeepSeek 联网搜索** 能力，桥接 DeepSeek `/responses` API 的服务端搜索。
 
 [English](README.md)
@@ -16,13 +20,15 @@
 
 ## 安装
 
-在包根目录：
+已通过 OIDC Trusted Publishing 发布到 npm（带 [SLSA provenance](https://slsa.dev) 证明）。在任意 pi 项目中：
 
 ```bash
-pi install .
+pi install npm:pi-deepseek-web-search
 ```
 
-或将 `src/index.ts` 软链/复制到项目的 `.pi/extensions/`，在 pi 会话中执行 `/reload`。
+然后在 pi 会话中执行 `/reload`。
+
+本地开发本包时：`pi install .`，或将 `src/index.ts` 软链/复制到项目的 `.pi/extensions/`。
 
 ## 配置
 
@@ -36,7 +42,7 @@ pi install .
 
 ```jsonc
 {
-  "$schema": "../schema/deepseek-web-search.config.schema.zh.json",
+  "$schema": "../node_modules/pi-deepseek-web-search/schema/deepseek-web-search.config.schema.zh.json",
   "apiKey": "sk-...",
   "model": "deepseek-v4-flash",
   "reasoningEffort": "low",
@@ -48,12 +54,12 @@ pi install .
 }
 ```
 
-> `$schema` 仅供编辑器自动补全/校验，运行时忽略。注释想要中文用 `.zh.json`，英文用 `.en.json`。
+> `$schema` 仅供编辑器自动补全/校验，运行时忽略。上述路径适用于包安装在项目 `node_modules`（相对 `.pi/` 目录）的场景；其他安装位置请自行调整。注释想要中文用 `.zh.json`，英文用 `.en.json`。
 
 ### 配置字段
 
 | 字段 | 类型 | 默认值 | 说明 |
-| ---- | ---- | ------ | ---- |
+| ------ | ------ | -------- | ------ |
 | `apiKey` | string | — | DeepSeek API key（必填）。`DEEPSEEK_API_KEY` 可覆盖 |
 | `baseUrl` | string | `https://api.deepseek.com` | API 基础地址（自建代理时修改） |
 | `model` | string | `deepseek-v4-flash` | 模型名。`DEEPSEEK_MODEL` 可覆盖 |

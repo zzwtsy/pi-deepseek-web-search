@@ -1,5 +1,9 @@
 # pi-deepseek-web-search
 
+[![npm version](https://img.shields.io/npm/v/pi-deepseek-web-search)](https://www.npmjs.com/package/pi-deepseek-web-search)
+[![npm downloads](https://img.shields.io/npm/dw/pi-deepseek-web-search)](https://www.npmjs.com/package/pi-deepseek-web-search)
+[![license](https://img.shields.io/npm/l/pi-deepseek-web-search)](LICENSE)
+
 A [pi](https://github.com/earendil-works/pi) extension that gives any model in your pi sessions a **DeepSeek-backed web search** tool, bridging the DeepSeek `/responses` API server-side web search.
 
 [中文说明](README.zh.md)
@@ -16,13 +20,15 @@ A [pi](https://github.com/earendil-works/pi) extension that gives any model in y
 
 ## Install
 
-From the project root of this package:
+Published to npm with [SLSA provenance](https://slsa.dev) via OIDC Trusted Publishing. In any pi project:
 
 ```bash
-pi install .
+pi install npm:pi-deepseek-web-search
 ```
 
-Or symlink/copy `src/index.ts` into your project's `.pi/extensions/` and run `/reload` in the pi session.
+Then run `/reload` in the pi session.
+
+Alternatively, for local development of this package: `pi install .`, or symlink/copy `src/index.ts` into your project's `.pi/extensions/`.
 
 ## Configuration
 
@@ -36,7 +42,7 @@ Config is read from, in order of precedence (later sources override earlier ones
 
 ```jsonc
 {
-  "$schema": "../schema/deepseek-web-search.config.schema.en.json",
+  "$schema": "../node_modules/pi-deepseek-web-search/schema/deepseek-web-search.config.schema.en.json",
   "apiKey": "sk-...",
   "model": "deepseek-v4-flash",
   "reasoningEffort": "low",
@@ -48,7 +54,7 @@ Config is read from, in order of precedence (later sources override earlier ones
 }
 ```
 
-> `$schema` is only used by editors for autocomplete/validation and is ignored at runtime. Use the `.en.json` schema for English comments, or the `.zh.json` one for Chinese.
+> `$schema` is only used by editors for autocomplete/validation and is ignored at runtime. The path above works when the package is installed in the project's `node_modules` (relative to `.pi/`); adjust it for other install locations. Use the `.en.json` schema for English comments, or the `.zh.json` one for Chinese.
 
 ### Config fields
 
