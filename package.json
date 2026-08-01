@@ -3,8 +3,12 @@
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@11.18.0",
-  "description": "",
+  "description": "DeepSeek-backed web search tool for pi sessions",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzwtsy/pi-deepseek-web-search.git"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -16,6 +20,13 @@
       "./src/index.ts"
     ]
   },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "README.zh.md",
+    "schema",
+    "src"
+  ],
   "scripts": {
     "clean": "rm -rf node_modules",
     "check": "tsc --noEmit",
@@ -37,5 +48,8 @@
     "eslint": "^10.7.0",
     "typescript": "6.0.3",
     "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

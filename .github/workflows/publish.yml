@@ -6,16 +6,23 @@ on:
       - "v*"
 
 permissions:
-  id-token: write # OIDC 认证必需
+  id-token: write # OIDC 认证必需（仅发布 job 需要，但 tag 触发的工作流无其他 job）
   contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      # actions 按完整 SHA 固定（可变标签可被重指；升级时经 Dependabot github-actions 提交 PR）
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false # 不在 .git/config 留下 token
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "26"
           registry-url: "https://registry.npmjs.org"
@@ -27,6 +34,17 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm test
+
+      # 防错发：tag 必须与 package.json 版本一致
+      - name: Verify tag matches package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag $TAG does not match package version $VERSION" >&2
+            exit 1
+          fi
 
       # OIDC Trusted Publishing（npm 2025-12 起 classic token 已吊销，
       # 2026 官方推荐路径）。注意：不要设置 NODE_AUTH_TOKEN——
