@@ -1,0 +1,130 @@
+{
+  "id": "81097d73-a2b6-469f-9c7f-cb02003bd156",
+  "object": "response",
+  "status": "completed",
+  "model": "deepseek-v4-flash",
+  "output": [
+    {
+      "type": "reasoning",
+      "id": "961c3a72-8c8c-46bd-a5b2-3b2b993e642e",
+      "status": "completed",
+      "content": [
+        {
+          "type": "reasoning_text",
+          "text": "The user is asking about today's weather in Beijing. I need to search for current weather information in Beijing."
+        }
+      ],
+      "summary": []
+    },
+    {
+      "type": "web_search_call",
+      "id": "call_00_wCnyaKPhNIH54FkxsfO96627",
+      "status": "completed",
+      "action": {
+        "type": "search",
+        "queries": [
+          "北京今天天气 天气预报",
+          "北京天气 今日 实时",
+          "ws_call_id=call_00_wCnyaKPhNIH54FkxsfO96627"
+        ]
+      }
+    },
+    {
+      "type": "reasoning",
+      "id": "76322ee9-18e2-4806-b05a-f1d4fc9a6600",
+      "status": "completed",
+      "content": [
+        {
+          "type": "reasoning_text",
+          "text": "Let me get more specific and current information. Let me open the Beijing weather page to get today's forecast.\n\nThe current date appears to be around August 1, 2026 based on the search results. Let me open the weather.com.cn page for Beijing.\n\nLet me open the 15-day forecast page for Beijing and the BJD news article."
+        }
+      ],
+      "summary": []
+    },
+    {
+      "type": "message",
+      "id": "d49b675e-ab9a-46c0-b463-d6ca698ab359",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "Let me get the latest and most detailed forecast for today's weather in Beijing."
+        }
+      ],
+      "phase": "commentary",
+      "role": "assistant"
+    },
+    {
+      "type": "web_search_call",
+      "id": "call_01_xMrPV6wAG3jTrsJYo4hU3575",
+      "status": "completed",
+      "action": {
+        "type": "open_page",
+        "url": "https://www.weather.com.cn/weather/101010100.shtml#ws_call_id=call_01_xMrPV6wAG3jTrsJYo4hU3575"
+      }
+    },
+    {
+      "type": "web_search_call",
+      "id": "call_02_EYmH6wudKPsFG64vvE524210",
+      "status": "completed",
+      "action": {
+        "type": "open_page",
+        "url": "https://news.bjd.com.cn/2026/08/01/11895454.shtml#ws_call_id=call_02_EYmH6wudKPsFG64vvE524210"
+      }
+    },
+    {
+      "type": "reasoning",
+      "id": "a750d412-8349-4a04-b985-dfabea590148",
+      "status": "completed",
+      "content": [
+        {
+          "type": "reasoning_text",
+          "text": "Based on the search results and the pages, today (August 1, 2026) in Beijing:\n- Weather: 多云转阴 (cloudy turning overcast), with scattered thunderstorms in the afternoon (especially in mountainous areas), main precipitation in evening to night\n- Temperature: highest 34°C, lowest 26°C\n- Wind: south wind 2-3 level, with gusts of 6-7 level during thunderstorms\n- Humidity relatively high\n\nLet me provide the answer in Chinese."
+        }
+      ],
+      "summary": []
+    },
+    {
+      "type": "message",
+      "id": "21ff1c29-45d1-4f7d-9656-3b8a4be6676c",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "根据最新气象预报，今天（8月1日）北京的天气情况如下：\n\n## ☁️ 今日北京天气\n\n**天气状况**：多云转阴，午后山区开始出现分散性雷阵雨，傍晚至夜间为主要降水时段\n\n**温度**：最高 **34℃**，最低 **26℃**\n\n**风力**：偏南风 2~3 级（雷雨时阵风可达六七级）\n\n## 📋 几点提醒\n\n- **降水特点**：雨量分布不均，呈\"面弱点强\"特征，其中**延庆、怀柔、密云、平谷、门头沟、房山**等区短时雨强较大\n- **体感**：闷热偏热，空气湿度较大，注意衣物变化\n- **出行建议**：\n  - 建议穿短衫、短裤等清凉夏季服装\n  - **不宜洗车**（有雨）\n  - 紫外线指数中等，外出可涂擦防晒护肤品\n  - 午后至夜间出门记得**携带雨具**，注意防范雷雨和大风\n\n总的来说，今天白天还算可以，但午后尤其是傍晚到夜间会有雷阵雨，出门记得带伞哦！🌂"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "usage": {
+    "input_tokens": 6555,
+    "input_tokens_details": {
+      "cached_tokens": 3200
+    },
+    "output_tokens": 636,
+    "output_tokens_details": {
+      "reasoning_tokens": 198
+    },
+    "total_tokens": 7191
+  },
+  "tool_choice": {
+    "type": "web_search"
+  },
+  "tools": [
+    {
+      "type": "web_search",
+      "search_context_size": null,
+      "user_location": null
+    }
+  ],
+  "reasoning": {
+    "effort": "low",
+    "summary": null
+  }
+}

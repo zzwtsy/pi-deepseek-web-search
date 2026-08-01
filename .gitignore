@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+.pi/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Temp
+*.log
+tmp/
+
+docs/plans/

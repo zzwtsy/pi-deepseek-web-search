@@ -1,0 +1,41 @@
+{
+  "name": "pi-deepseek-web-search",
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.18.0",
+  "description": "",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "web-search",
+    "search"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "clean": "rm -rf node_modules",
+    "check": "tsc --noEmit",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen:schema": "node scripts/generate-schema.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.2.0",
+    "@types/node": "^26.1.2",
+    "eslint": "^10.7.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
