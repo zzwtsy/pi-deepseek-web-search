@@ -27,6 +27,16 @@ describe("truncate", () => {
     expect(text).toBe("hello\n\n...[truncated]");
     expect(truncated).toBe(true);
   });
+
+  it("边界落在代理对中间时回退一个 UTF-16 单元，不产生孤立代理位", () => {
+    const atHighSurrogate = truncate("a😀b", 2);
+    expect(atHighSurrogate.text).toBe("a\n\n...[truncated]");
+    expect(atHighSurrogate.truncated).toBe(true);
+
+    const firstCharIsEmoji = truncate("😀b", 1);
+    expect(firstCharIsEmoji.text).toBe("\n\n...[truncated]");
+    expect(firstCharIsEmoji.truncated).toBe(true);
+  });
 });
 
 describe("buildToolContent", () => {
@@ -205,13 +215,20 @@ describe("resolvePrices", () => {
     peak: { multiplier: 2, hours: [["09:00", "12:00"]] },
   };
 
-  it("未配 models 时原样返回", () => {
-    expect(resolvePrices(BASE, "deepseek-v4-flash")).toBe(BASE);
+  it("未配 models 时返回等价但不含 models 的新对象", () => {
+    const resolved = resolvePrices(BASE, "deepseek-v4-flash");
+    expect(resolved).toEqual(BASE);
+    expect("models" in resolved).toBe(false);
   });
 
-  it("未知模型回退顶层价格", () => {
+  it("未知模型回退顶层价格（同样不含 models）", () => {
     const prices: PriceConfig = { ...BASE, models: { "deepseek-v4-pro": { outputPerMillion: 6 } } };
-    expect(resolvePrices(prices, "unknown-model")).toBe(prices);
+    const resolved = resolvePrices(prices, "unknown-model");
+    expect(resolved.inputPerMillion).toBe(1);
+    expect(resolved.cachedInputPerMillion).toBe(0.02);
+    expect(resolved.outputPerMillion).toBe(2);
+    expect(resolved.peak).toEqual(BASE.peak);
+    expect("models" in resolved).toBe(false);
   });
 
   it("命中 models 表：覆盖字段生效，缺省字段回退顶层", () => {

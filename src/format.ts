@@ -18,17 +18,22 @@ export interface ToolDetails {
   model: string;
   /** 本次搜索的 token 用量（缓存命中时沿用首次搜索的记录） */
   usage?: SearchUsage;
+  /** 用户取消标记（取消时无 searches/answer，仅供渲染层区分取消态） */
+  cancelled?: boolean;
 }
 
 /** 按字符截断文本，超出时在末尾追加截断标记 */
 export function truncate(text: string, maxChars: number): { text: string; truncated: boolean } {
   if (text.length <= maxChars)
     return { text, truncated: false };
-  return { text: `${text.slice(0, maxChars)}\n\n...[truncated]`, truncated: true };
+  // 边界落在高代理位时回退一个 UTF-16 单元，避免切开代理对（emoji 等）产生孤立代理位
+  const code = text.charCodeAt(maxChars - 1);
+  const end = code >= 0xD800 && code <= 0xDBFF ? maxChars - 1 : maxChars;
+  return { text: `${text.slice(0, end)}\n\n...[truncated]`, truncated: true };
 }
 
 /** 搜索动作的展示摘要（过滤掉无意义的空查询） */
-function formatActions(actions: WebSearchAction[]): string[] {
+export function formatActions(actions: WebSearchAction[]): string[] {
   const lines: string[] = [];
   for (const action of actions) {
     if (action.type === "search" && action.queries != null && action.queries.length > 0) {
@@ -122,8 +127,15 @@ export function isPeakTime(now: Date, hours: Array<[string, string]>): boolean {
  */
 export function resolvePrices(prices: PriceConfig, model: string): PriceConfig {
   const override = prices.models?.[model];
-  if (override == null)
-    return prices;
+  if (override == null) {
+    // 无覆盖时同样返回不含 models 的新对象，与覆盖分支契约一致（可直接传 computeCost）
+    return {
+      inputPerMillion: prices.inputPerMillion,
+      cachedInputPerMillion: prices.cachedInputPerMillion,
+      outputPerMillion: prices.outputPerMillion,
+      peak: prices.peak,
+    };
+  }
   return {
     inputPerMillion: override.inputPerMillion ?? prices.inputPerMillion,
     cachedInputPerMillion: override.cachedInputPerMillion ?? prices.cachedInputPerMillion,

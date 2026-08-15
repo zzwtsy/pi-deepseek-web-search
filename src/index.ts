@@ -22,6 +22,18 @@ export type { DeepSeekWebSearchDetails, DeepSeekWebSearchInput } from "./types.j
 /** 搜索缓存单例：模块级共享，reload 后随模块重置 */
 let sharedCache: TtlCache<SearchResult> | undefined;
 
+/** 配置提供者单例：进程内缓存随模块生命周期共享；cwd 变化时重建（同一项目内避免重复读文件） */
+let configProvider: ConfigProvider | undefined;
+let configProviderCwd: string | undefined;
+
+function getConfigProvider(cwd: string): ConfigProvider {
+  if (configProvider === undefined || configProviderCwd !== cwd) {
+    configProvider = new ConfigProvider({ cwd });
+    configProviderCwd = cwd;
+  }
+  return configProvider;
+}
+
 /** 组合点：把配置装配成 SearchProvider。换/加后端时只改这里（未来加 provider 配置字段后改为 switch + assertNever 分发） */
 function createProvider(config: SearchConfig): SearchProvider {
   return new DeepSeekClient({
@@ -33,8 +45,10 @@ function createProvider(config: SearchConfig): SearchProvider {
 
 /** SearchUsage → pi 的 Usage（成本按价格配置实时计算，默认官方平峰价） */
 function toPiUsage(usage: SearchUsage, prices: PriceConfig) {
+  // DeepSeek 的 input_tokens 已包含 cached_tokens，而 pi 的 Usage 把 input/cacheRead 视为互斥并求和；
+  // 未命中部分 = inputTokens - cachedTokens（与 computeCost 的 uncachedInput 一致），避免重复计数
   return {
-    input: usage.inputTokens,
+    input: Math.max(usage.inputTokens - usage.cachedTokens, 0),
     output: usage.outputTokens,
     cacheRead: usage.cachedTokens,
     cacheWrite: 0,
@@ -60,25 +74,29 @@ export default function (pi: ExtensionAPI): void {
     renderResult,
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const startedAt = Date.now();
-      const query = normalizeQuery(params.query);
+      // 先校验参数：缺失/空白 query 抛预期的校验错误，避免 normalizeQuery 对 undefined 抛裸 TypeError
+      const query = typeof params.query === "string" ? normalizeQuery(params.query) : "";
       if (query === "") {
         throw new Error("Query must not be empty.");
       }
       const mode = params.mode ?? "answer";
 
-      // 每次执行读取配置（ConfigProvider 内部有进程内缓存，读取开销小）
-      const configProvider = new ConfigProvider({ cwd: ctx.cwd });
+      // 配置经单例进程内缓存读取（同一 cwd 下只读一次文件）
+      const configProvider = getConfigProvider(ctx.cwd);
       const config = await configProvider.get();
       const configError = validateConfig(config);
       if (configError != null) {
         throw new Error(configError);
       }
 
-      // 首个使用点按配置的 TTL 创建缓存单例
-      sharedCache ??= new TtlCache<SearchResult>(config.cacheTtlMs);
+      // 缓存 TTL 随配置变化重建单例；配置经 status reload 或重启刷新后，cacheTtlMs / DEEPSEEK_CACHE_TTL_MS 改动即可在下次搜索生效
+      if (sharedCache === undefined || sharedCache.ttlMs !== config.cacheTtlMs) {
+        sharedCache = new TtlCache<SearchResult>(config.cacheTtlMs);
+      }
       const cache = sharedCache;
 
-      const cacheKey = `${config.model}:${mode}:${query}`;
+      // 缓存 key 显式隔离 cwd/baseUrl/model，避免不同项目或代理共用同一结果
+      const cacheKey = JSON.stringify([ctx.cwd, config.baseUrl, config.model, mode, query]);
       const cachedResult = cache.get(cacheKey);
       if (cachedResult != null) {
         return {
@@ -89,6 +107,8 @@ export default function (pi: ExtensionAPI): void {
             },
           ],
           details: buildToolDetails(cachedResult, { query, mode, cached: true, durationMs: 0 }, config.maxResultChars),
+          // 缓存命中不返回顶层 usage：本次工具执行没有真实 API 调用，返回首次 usage 会在 pi 会话统计中重复计费；
+          // details.usage 仍保留首次搜索的原始记录，仅供展示
         };
       }
 
@@ -168,8 +188,9 @@ export default function (pi: ExtensionAPI): void {
         return;
       }
 
-      const configProvider = new ConfigProvider({ cwd: ctx.cwd });
-      const config = await configProvider.get();
+      // status 复用单例但强制 reload，反映用户最新改动（reload 是单例上唯一的刷新入口）
+      const configProvider = getConfigProvider(ctx.cwd);
+      const config = await configProvider.reload();
       const keyMasked = config.apiKey
         ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-4)}`
         : "not configured";

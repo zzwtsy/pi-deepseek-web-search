@@ -1,6 +1,10 @@
 {
   "type": "object",
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for editor autocomplete/validation only; ignored at runtime."
+    },
     "apiKey": {
       "type": "string",
       "minLength": 1,
@@ -16,7 +20,7 @@
       "default": "deepseek-v4-flash",
       "minLength": 1,
       "pattern": "^(?!\\s*$)",
-      "description": "Model name; switch to deepseek-v4-pro once supported. Overridable via DEEPSEEK_MODEL."
+      "description": "Model name. The Responses API supports deepseek-v4-flash; switch to deepseek-v4-pro once supported (pricing resolves via prices.models). Overridable via DEEPSEEK_MODEL."
     },
     "reasoningEffort": {
       "type": "string",
@@ -27,13 +31,13 @@
         "auto"
       ],
       "default": "low",
-      "description": "Reasoning effort: off disables thinking; auto uses model default. Overridable via DEEPSEEK_REASONING_EFFORT."
+      "description": "Reasoning effort: off disables thinking, low/high control the amount, auto uses the model default. Overridable via DEEPSEEK_REASONING_EFFORT."
     },
     "maxOutputTokens": {
       "type": "integer",
       "minimum": 1,
       "default": 4096,
-      "description": "Max output tokens. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS."
+      "description": "Maximum output tokens for the answer. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS."
     },
     "timeoutMs": {
       "type": "integer",
@@ -51,7 +55,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 50000,
-      "description": "Max result chars before truncation. Overridable via DEEPSEEK_MAX_RESULT_CHARS."
+      "description": "Max chars returned to the LLM; longer text is truncated. Overridable via DEEPSEEK_MAX_RESULT_CHARS."
     },
     "prices": {
       "type": "object",
@@ -104,11 +108,11 @@
                 "minItems": 2
               },
               "minItems": 1,
-              "description": "Peak hour ranges, half-open [start, end)."
+              "description": "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not."
             }
           },
           "additionalProperties": false,
-          "description": "Peak pricing; official peak hours are daily 09:00-12:00 and 14:00-18:00 Beijing time."
+          "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily."
         },
         "models": {
           "type": "object",
@@ -161,18 +165,18 @@
                         "minItems": 2
                       },
                       "minItems": 1,
-                      "description": "Peak hour ranges, half-open [start, end)."
+                      "description": "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not."
                     }
                   },
                   "additionalProperties": false,
-                  "description": "Peak pricing; official peak hours are daily 09:00-12:00 and 14:00-18:00 Beijing time."
+                  "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily."
                 }
               },
               "additionalProperties": false,
               "description": "Per-model price override; missing fields fall back to top-level prices."
             }
           },
-          "description": "Per-model price overrides, keyed by model name."
+          "description": "Per-model price overrides keyed by model name; a matching model takes precedence. Setting this field replaces the default table as a whole."
         }
       },
       "additionalProperties": false,

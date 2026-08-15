@@ -5,6 +5,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { DeepSeekWebSearchDetails, DeepSeekWebSearchInput } from "./types.js";
 import { Text } from "@earendil-works/pi-tui";
+import { formatActions } from "./format.js";
 
 /** 工具结果的结构化视图（与 AgentToolResult 兼容的最小面） */
 interface RenderableToolResult<T> {
@@ -37,6 +38,11 @@ export function renderResult(
     return new Text(theme.fg("dim", contentText));
   }
 
+  // 取消态：用户取消的搜索，dim 中性样式（区别于成功标记，避免显示成绿色空结果）
+  if (details?.cancelled) {
+    return new Text(theme.fg("dim", contentText || "Search cancelled"));
+  }
+
   // 错误态：details.error 优先，其次 content 文本
   if (result.isError) {
     const error = (result.details as { error?: unknown } | undefined)?.error;
@@ -52,16 +58,9 @@ export function renderResult(
     return new Text(theme.fg("success", `✓ ${searches} searches · ${chars} chars${truncated}`));
   }
 
-  // 展开态：回答全文（渲染限长）+ 搜索动作列表（dim）
+  // 展开态：回答全文（渲染限长）+ 搜索动作列表（dim，复用 format.ts 的动作摘要逻辑）
   const answer = (details?.answer ?? "").slice(0, EXPANDED_ANSWER_CHARS);
-  const actionLines: string[] = [];
-  for (const action of details?.searches ?? []) {
-    if (action.type === "search" && action.queries != null && action.queries.length > 0) {
-      actionLines.push(theme.fg("dim", `- searched: ${action.queries.join(" | ")}`));
-    } else if ((action.type === "open_page" || action.type === "find_in_page") && action.url != null) {
-      actionLines.push(theme.fg("dim", `- ${action.type === "open_page" ? "opened" : "searched in"}: ${action.url}`));
-    }
-  }
+  const actionLines = formatActions(details?.searches ?? []).map(line => theme.fg("dim", line));
   const actionsText = actionLines.length > 0 ? `\n${actionLines.join("\n")}` : "";
   return new Text(`${answer}${actionsText}`);
 }

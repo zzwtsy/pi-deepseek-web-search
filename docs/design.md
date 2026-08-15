@@ -1,6 +1,6 @@
 # pi-deepseek-web-search 设计文档（Design Document）
 
-> 状态：**已实现**（P0–P7 全部落地，81 个单测通过）。本文档是项目架构与设计决策的权威记录；修订代码时若设计与实现冲突，以本文档为准并同步更新。
+> 状态：**已实现**（P0–P7 全部落地，94 个单测通过）。本文档是项目架构与设计决策的权威记录；修订代码时若设计与实现冲突，以本文档为准并同步更新。
 >
 > 相关文档：`AGENTS.md`（开发约定/命令/验证协议）、`README.md`（用户文档，中英双版）、`schema/*.json`（配置 Schema 生成产物，单一来源见 `src/config-schema.ts`）。
 
@@ -49,6 +49,7 @@ index.ts ──→ config.ts ──→ config-schema.ts（单一来源，被 con
     │  └──→ provider.ts ←── deepseek.ts（适配器，implements SearchProvider）
     │  └──→ format.ts ──→ provider.ts（纯类型）
     └─────→ render.ts ──→ types.ts
+                        └──→ format.ts（复用动作摘要格式化）
 ```
 
 一条直线，无环：`provider.ts` 零 src 内 import；`deepseek.ts` 仅 `import type`（运行时擦除）。**组合点 `createProvider()` 是唯一知道具体实现的地方**。
@@ -83,6 +84,8 @@ index.ts ──→ config.ts ──→ config-schema.ts（单一来源，被 con
 ### 5.1 配置层级
 
 `环境变量 > 项目 .pi/deepseek-web-search.json > 全局 ~/.pi/agent/deepseek-web-search.json > 默认值`，字段级 merge（`prices` 嵌套对象做一层深合并，防止 `Object.assign` 整块覆盖）。
+
+配置在扩展进程内按 cwd 缓存（`ConfigProvider` 单例）；修改配置文件或环境变量后需重启 pi / `/reload`，或运行 `/deepseek-search status` 强制刷新。
 
 字段全集与约束见生成的 schema 文件（编辑器可经 `$schema` 引用获得补全/校验）：
 

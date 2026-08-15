@@ -2,7 +2,7 @@ import type { ReasoningEffort, SearchErrorCode, SearchOptions, SearchProvider, S
 import { SearchError } from "./provider.js";
 // deepseek.ts —— DeepSeek /responses API 适配器：实现 SearchProvider 端口。
 // 唯一知道 DeepSeek 协议/HTTP 细节的文件；领域类型与错误定义见 provider.ts。
-// 实测要点（2026-08-01，见 docs/api/Search.md）：
+// 实测要点（见 docs/api/Search.md）：
 //   - web_search_call.action.queries 是数组且混入 "ws_call_id=..." 内部参数，需过滤
 //   - open_page 的 url 带 "#ws_call_id=..." 后缀，需剥离
 //   - message 有 phase 字段：只取 "final_answer"，跳过 "commentary"（思考外显文本）
@@ -13,7 +13,7 @@ export interface DeepSeekClientOptions {
   apiKey: string;
   /** 注入 fetch 实现以便测试（默认全局 fetch） */
   fetchFn?: typeof fetch;
-  /** 默认模型，仅 deepseek-v4-flash 支持 /responses */
+  /** 默认模型，deepseek-v4-flash 提供 /responses */
   model?: string;
 }
 
@@ -148,12 +148,23 @@ function extractErrorMessage(body: unknown): string | undefined {
 
 /** 可取消的延时（用于重试退避） */
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  // 已中止的 signal 不会再派发 abort 事件，需在此直接失败，避免空等整个退避时间
+  if (signal?.aborted)
+    throw new Error("sleep aborted");
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
+    let onAbort: () => void;
+    // 正常计时结束：解除监听，避免残留引用
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    onAbort = () => {
       clearTimeout(timer);
-      reject(new SearchError("Request aborted", "aborted"));
-    }, { once: true });
+      signal?.removeEventListener("abort", onAbort);
+      // 抛普通 Error 而非 SearchError：调用方 catch 依据 options.signal / controller.signal 区分取消来源
+      reject(new Error("sleep aborted"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -177,6 +188,10 @@ export class DeepSeekClient implements SearchProvider {
    * 服务端执行 search/open_page 等动作并生成综合回答，返回回答文本与动作记录。
    */
   async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
+    // 入口守卫：signal 已中止时直接抛出 aborted，不再发网络请求（addEventListener 不会对历史 abort 触发）
+    if (options.signal?.aborted)
+      throw new SearchError("Request aborted", "aborted");
+
     const body = this.buildRequestBody(query, options);
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

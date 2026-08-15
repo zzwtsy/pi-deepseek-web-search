@@ -1,7 +1,7 @@
 // DeepSeekClient 单元测试：mock fetch，覆盖请求构造、响应解析、错误映射、重试、超时与取消。
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildReasoningField, DeepSeekClient } from "../src/deepseek.js";
 
 const API_KEY = "test-key";
@@ -247,5 +247,23 @@ describe("DeepSeekClient.search", () => {
     await client.search("q");
     expect(calls[0].url).toBe("https://proxy.example.com/responses");
     expect(calls[0].init.headers).toMatchObject({ Authorization: `Bearer ${API_KEY}` });
+  });
+
+  it("重试退避期间内部超时 → timeout（不再误报 aborted）", async () => {
+    // 5xx 触发退避，timeoutMs 极短使内部定时器在 sleep 期间触发 abort
+    const fetchFn = (async () => jsonResponse(500, { error: { message: "boom" } })) as typeof fetch;
+    await expect(makeClient(fetchFn).search("q", { timeoutMs: 50 })).rejects.toMatchObject({
+      code: "timeout",
+    });
+  });
+
+  it("入参已中止的 signal → aborted（不发网络请求）", async () => {
+    const fetchFn = vi.fn(async () => jsonResponse(200, { output: [] })) as typeof fetch;
+    const controller = new AbortController();
+    controller.abort();
+    await expect(makeClient(fetchFn).search("q", { signal: controller.signal })).rejects.toMatchObject({
+      code: "aborted",
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 });

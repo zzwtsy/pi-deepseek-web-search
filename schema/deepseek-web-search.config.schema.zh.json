@@ -1,6 +1,10 @@
 {
   "type": "object",
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema 地址，仅供编辑器补全/校验；运行时忽略。"
+    },
     "apiKey": {
       "type": "string",
       "minLength": 1,
@@ -16,7 +20,7 @@
       "default": "deepseek-v4-flash",
       "minLength": 1,
       "pattern": "^(?!\\s*$)",
-      "description": "模型名。Responses API 目前仅支持 deepseek-v4-flash；v4-pro 适配后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。"
+      "description": "模型名。Responses API 支持 deepseek-v4-flash；v4-pro 支持后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。"
     },
     "reasoningEffort": {
       "type": "string",

@@ -20,7 +20,7 @@ export interface SearchConfig {
   apiKey: string;
   /** API 基础地址（自建代理时修改） */
   baseUrl: string;
-  /** 模型名（Responses API 目前仅 deepseek-v4-flash；v4-pro 适配后改这里即切换） */
+  /** 模型名（Responses API 开放 deepseek-v4-flash；v4-pro 适配后改这里即切换） */
   model: string;
   /** 推理强度（off 关闭思考以省 token） */
   reasoningEffort: ReasoningEffort;
@@ -92,7 +92,21 @@ const NUMBER_FIELD_ENV_NAMES: Record<string, keyof Pick<SearchConfig, "maxOutput
   DEEPSEEK_MAX_RESULT_CHARS: "maxResultChars",
 };
 
-/** 校验 schema 表达力之外的字段间约束（JSON Schema 无法表达的例外）：peak.hours 的 start < end、models 空 key */
+/** 校验 peak.hours 的 start < end（半开区间，JSON Schema 无法表达） */
+function validatePeakHours(hours: unknown, path: string, source: string): void {
+  if (!Array.isArray(hours))
+    return;
+  for (const item of hours) {
+    if (!Array.isArray(item) || item.length !== 2)
+      continue;
+    const [start, end] = item as [string, string];
+    if (start >= end) {
+      throw new ConfigError(`Invalid ${path}.hours in ${source}: start must be before end`);
+    }
+  }
+}
+
+/** 校验 schema 表达力之外的字段间约束（JSON Schema 无法表达的例外）：顶层与 per-model 的 peak.hours start < end、models 空 key */
 function validateBeyondSchema(body: Record<string, unknown>, source: string): void {
   const prices = body.prices;
   if (prices == null || typeof prices !== "object")
@@ -100,23 +114,18 @@ function validateBeyondSchema(body: Record<string, unknown>, source: string): vo
   const record = prices as Record<string, unknown>;
   const peak = record.peak;
   if (peak != null && typeof peak === "object") {
-    const hours = (peak as Record<string, unknown>).hours;
-    if (Array.isArray(hours)) {
-      for (const item of hours) {
-        if (!Array.isArray(item) || item.length !== 2)
-          continue;
-        const [start, end] = item as [string, string];
-        if (start >= end) {
-          throw new ConfigError(`Invalid prices.peak.hours in ${source}: start must be before end`);
-        }
-      }
-    }
+    validatePeakHours((peak as Record<string, unknown>).hours, "prices.peak", source);
   }
   const models = record.models;
   if (models != null && typeof models === "object" && !Array.isArray(models)) {
     for (const key of Object.keys(models)) {
       if (key.trim() === "") {
         throw new ConfigError(`Invalid prices.models in ${source}: empty model name`);
+      }
+      // per-model peak 同样要满足 start < end，否则该模型高峰时段永不命中
+      const modelPeak = ((models as Record<string, unknown>)[key] as Record<string, unknown> | undefined)?.peak;
+      if (modelPeak != null && typeof modelPeak === "object") {
+        validatePeakHours((modelPeak as Record<string, unknown>).hours, `prices.models.${key}.peak`, source);
       }
     }
   }
@@ -143,11 +152,12 @@ export function parseConfigFile(raw: string, source: string): ConfigFileShape {
     throw new ConfigError(`Invalid config file ${source}: expected a JSON object`);
   }
   const record = json as Record<string, unknown>;
-  const { $schema: _ignored, ...body } = record;
-  if (!Check(configFileSchema, body)) {
-    throw new ConfigError(formatSchemaError(Errors(configFileSchema, body)));
+  // 先按完整对象校验（含 $schema 字段类型），通过后再剥离 $schema 返回运行时配置
+  if (!Check(configFileSchema, record)) {
+    throw new ConfigError(formatSchemaError(Errors(configFileSchema, record)));
   }
-  validateBeyondSchema(body, source);
+  validateBeyondSchema(record, source);
+  const { $schema: _ignored, ...body } = record;
   return body;
 }
 
@@ -197,8 +207,11 @@ function configFromEnv(env: NodeJS.ProcessEnv): ConfigFileShape {
     const value = env[envName];
     if (value === undefined)
       continue;
-    const num = Number.parseInt(value, 10);
-    if (!Number.isInteger(num) || num <= 0) {
+    // 严格整数解析：拒绝 "30s"、"30_000" 等含非法字符的值，而非 parseInt 静默截断成错误数值；
+    // 同时拒绝超长字符串（Number 会溢出为 Infinity）
+    const trimmed = value.trim();
+    const num = Number(trimmed);
+    if (!/^\d+$/.test(trimmed) || !Number.isFinite(num) || num <= 0) {
       throw new ConfigError(`Invalid ${envName}: expected a positive integer`);
     }
     shape[field] = num;
@@ -208,8 +221,11 @@ function configFromEnv(env: NodeJS.ProcessEnv): ConfigFileShape {
     const value = env[envName];
     if (value === undefined)
       continue;
-    const num = Number.parseFloat(value);
-    if (!Number.isFinite(num) || num <= 0) {
+    // 严格数字解析：拒绝 "1.5元"、"abc" 等，而非 parseFloat 静默截断；
+    // 同时拒绝超长字符串（Number 会溢出为 Infinity）
+    const trimmed = value.trim();
+    const num = Number(trimmed);
+    if (!/^\d+(?:\.\d+)?$/.test(trimmed) || !Number.isFinite(num) || num <= 0) {
       throw new ConfigError(`Invalid ${envName}: expected a positive number`);
     }
     envPrices[field] = num;
@@ -238,7 +254,12 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Searc
   const readFile = options.readFile ?? (async (path: string) => defaultReadFile(path, "utf8"));
   const homeDir = options.homeDir ?? defaultHomedir();
 
-  const merged: SearchConfig = { apiKey: "", ...DEFAULT_CONFIG };
+  // prices 需独立对象：深拷贝默认值，避免向外共享模块级 DEFAULT_CONFIG.prices（防调用方误改污染全局）
+  const merged: SearchConfig = {
+    apiKey: "",
+    ...DEFAULT_CONFIG,
+    prices: structuredClone(DEFAULT_CONFIG.prices),
+  };
 
   // 全局配置文件：~/.pi/agent/deepseek-web-search.json
   const globalFile = await tryReadConfigFile(join(homeDir, GLOBAL_CONFIG_DIR, CONFIG_FILE_NAME), readFile);
@@ -258,7 +279,7 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Searc
   return merged;
 }
 
-/** 校验配置是否可用（目前仅要求 apiKey 非空），返回可读错误信息 */
+/** 校验配置是否可用（要求 apiKey 非空），返回可读错误信息 */
 export function validateConfig(config: SearchConfig): string | undefined {
   if (config.apiKey.trim() === "") {
     return "DeepSeek API key is not configured. Set DEEPSEEK_API_KEY or add apiKey to the config file.";

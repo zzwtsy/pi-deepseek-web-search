@@ -63,7 +63,7 @@ export interface ModelPriceConfig {
   peak?: PeakPriceConfig;
 }
 
-/** 价格配置：元/百万 tokens（依据官方定价页 2026-08，deepseek-v4-flash 为 1 / 0.02 / 2） */
+/** 价格配置：元/百万 tokens（依据官方定价页，deepseek-v4-flash 为 1 / 0.02 / 2） */
 export interface PriceConfig {
   /** 输入单价（缓存未命中） */
   inputPerMillion: number;
@@ -71,7 +71,7 @@ export interface PriceConfig {
   cachedInputPerMillion: number;
   /** 输出单价 */
   outputPerMillion: number;
-  /** 峰谷覆盖：不配置 = 全时段平峰价（官方执行峰谷前的现状） */
+  /** 峰谷覆盖：不配置 = 全时段平峰价 */
   peak?: PeakPriceConfig;
   /** 按模型覆盖的价格表（key = 模型名，命中优先；整块覆盖，不逐 key 合并） */
   models?: Record<string, ModelPriceConfig>;

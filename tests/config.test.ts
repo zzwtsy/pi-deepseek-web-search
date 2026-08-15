@@ -107,10 +107,32 @@ describe("loadConfig 优先级", () => {
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "abc" } })).rejects.toThrow(ConfigError);
   });
 
+  it("env 数字解析拒绝畸形值（而非 parseInt/parseFloat 静默截断）", async () => {
+    const dir = makeDirs();
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "30s" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "30_000" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_MAX_OUTPUT_TOKENS: "4096.5" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_CACHE_TTL_MS: "5m" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_INPUT: "1.5元" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_OUTPUT: "2x" } })).rejects.toThrow(ConfigError);
+    // 超长数字字符串：正则能通过，但 Number() 会溢出为 Infinity，必须拒绝
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "9".repeat(400) } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_INPUT: `${"9".repeat(400)}.5` } })).rejects.toThrow(ConfigError);
+  });
+
   it("配置文件 JSON 损坏抛 ConfigError", async () => {
     const dir = makeDirs();
     writeFile(join(dir.homeDir, CONFIG_DIR, "agent", CONFIG_FILE), "{broken");
     await expect(loadConfig({ ...dir, env: {} })).rejects.toThrow(ConfigError);
+  });
+
+  it("loadConfig：prices 为独立对象，改动不影响 DEFAULT_CONFIG", async () => {
+    const dir = makeDirs();
+    const config = await loadConfig({ ...dir, env: {} });
+    config.prices.inputPerMillion = 999;
+    config.prices.models!["deepseek-v4-pro"].outputPerMillion = 999;
+    expect(DEFAULT_CONFIG.prices.inputPerMillion).toBe(1);
+    expect(DEFAULT_CONFIG.prices.models?.["deepseek-v4-pro"]?.outputPerMillion).toBe(6);
   });
 });
 
@@ -231,6 +253,17 @@ describe("model 与 prices.models", () => {
     const dir = makeDirs();
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_MODEL: "  " } })).rejects.toThrow(ConfigError);
   });
+
+  it("parseConfigFile：per-model peak 同样校验 start < end", () => {
+    const bad = () => parseConfigFile(
+      JSON.stringify({
+        prices: { models: { "deepseek-v4-pro": { peak: { multiplier: 2, hours: [["18:00", "09:00"]] } } } },
+      }),
+      "f.json",
+    );
+    expect(bad).toThrow(ConfigError);
+    expect(bad).toThrow(/prices\.models\.deepseek-v4-pro\.peak\.hours/);
+  });
 });
 
 describe("validateConfig", () => {
@@ -242,10 +275,12 @@ describe("validateConfig", () => {
 });
 
 describe("parseConfigFile：TypeBox 校验", () => {
-  it("配置中的 $schema 字段被剥离（仅供编辑器关联）", () => {
+  it("配置中的 $schema 字段被校验并剥离（仅供编辑器关联）", () => {
     const shape = parseConfigFile(JSON.stringify({ $schema: "./schema.json", apiKey: "sk-1" }), "t.json");
     expect(shape.apiKey).toBe("sk-1");
     expect("$schema" in shape).toBe(false);
+    // 编辑器专用字段也按 schema 校验类型，运行时不再静默忽略非法值
+    expect(() => parseConfigFile(JSON.stringify({ $schema: 123 }), "f.json")).toThrow(ConfigError);
   });
 
   it("错误消息包含字段路径（instancePath 转点号）", () => {
@@ -301,6 +336,13 @@ describe("schema 生成一致性", () => {
     const en: unknown = JSON.parse(await readFile(join(process.cwd(), "schema", "deepseek-web-search.config.schema.en.json"), "utf8"));
     expect(zh).toEqual(buildSchemaDoc("zh"));
     expect(en).toEqual(buildSchemaDoc("en"));
+  });
+
+  it("生成的 schema 允许并定义 $schema 字段（编辑器不告警）", () => {
+    const en = buildSchemaDoc("en") as { properties: Record<string, { type?: unknown }> };
+    const zh = buildSchemaDoc("zh") as { properties: Record<string, { type?: unknown }> };
+    expect(en.properties.$schema?.type).toBe("string");
+    expect(zh.properties.$schema?.type).toBe("string");
   });
 
   it("schema default 与 DEFAULT_CONFIG 对齐（单一来源抽查）", () => {

@@ -24,13 +24,13 @@ export const peakSchema = Type.Object({
     {
       minItems: 1,
       descriptionZh: "高峰时段列表，半开区间 [start, end)（09:00 计高峰、12:00 不计）。",
-      descriptionEn: "Peak hour ranges, half-open [start, end).",
+      descriptionEn: "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not.",
     },
   ),
 }, {
   additionalProperties: false,
   descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。",
-  descriptionEn: "Peak pricing; official peak hours are daily 09:00-12:00 and 14:00-18:00 Beijing time.",
+  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily.",
 });
 
 /** 单模型价格覆盖（部分覆盖：缺省项回退顶层价格；无 models 键 + additionalProperties:false 天然禁止嵌套） */
@@ -57,7 +57,7 @@ export const modelPriceSchema = Type.Object({
   descriptionEn: "Per-model price override; missing fields fall back to top-level prices.",
 });
 
-/** 价格配置（元/百万 tokens，依据官方定价页 2026-08） */
+/** 价格配置（元/百万 tokens，依据官方定价页） */
 export const pricesSchema = Type.Object({
   inputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
@@ -80,7 +80,7 @@ export const pricesSchema = Type.Object({
   peak: Type.Optional(peakSchema),
   models: Type.Optional(Type.Record(Type.String(), modelPriceSchema, {
     descriptionZh: "按模型覆盖的价格表（key = 模型名，命中优先；整块替换默认表）。",
-    descriptionEn: "Per-model price overrides, keyed by model name.",
+    descriptionEn: "Per-model price overrides keyed by model name; a matching model takes precedence. Setting this field replaces the default table as a whole.",
   })),
 }, {
   additionalProperties: false,
@@ -90,6 +90,10 @@ export const pricesSchema = Type.Object({
 
 /** 配置文件结构（所有字段可选，按优先级合并）——单一事实来源 */
 export const configFileSchema = Type.Object({
+  $schema: Type.Optional(Type.String({
+    descriptionZh: "JSON Schema 地址，仅供编辑器补全/校验；运行时忽略。",
+    descriptionEn: "JSON Schema URL for editor autocomplete/validation only; ignored at runtime.",
+  })),
   apiKey: Type.Optional(Type.String({
     minLength: 1,
     descriptionZh: "DeepSeek API key（必填）。优先级：环境变量 DEEPSEEK_API_KEY > 本字段。",
@@ -104,21 +108,21 @@ export const configFileSchema = Type.Object({
     default: "deepseek-v4-flash",
     minLength: 1,
     pattern: "^(?!\\s*$)",
-    descriptionZh: "模型名。Responses API 目前仅支持 deepseek-v4-flash；v4-pro 适配后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。",
-    descriptionEn: "Model name; switch to deepseek-v4-pro once supported. Overridable via DEEPSEEK_MODEL.",
+    descriptionZh: "模型名。Responses API 支持 deepseek-v4-flash；v4-pro 支持后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。",
+    descriptionEn: "Model name. The Responses API supports deepseek-v4-flash; switch to deepseek-v4-pro once supported (pricing resolves via prices.models). Overridable via DEEPSEEK_MODEL.",
   })),
   reasoningEffort: Type.Optional(Type.Unsafe<ReasoningEffort>({
     type: "string",
     enum: ["off", "low", "high", "auto"],
     default: "low",
     descriptionZh: "推理强度：off 关闭思考（省 token）、low/high 控制思考量、auto 用模型默认行为。环境变量 DEEPSEEK_REASONING_EFFORT 可覆盖。",
-    descriptionEn: "Reasoning effort: off disables thinking; auto uses model default. Overridable via DEEPSEEK_REASONING_EFFORT.",
+    descriptionEn: "Reasoning effort: off disables thinking, low/high control the amount, auto uses the model default. Overridable via DEEPSEEK_REASONING_EFFORT.",
   })),
   maxOutputTokens: Type.Optional(Type.Integer({
     minimum: 1,
     default: 4096,
     descriptionZh: "回答最大输出 token 数。环境变量 DEEPSEEK_MAX_OUTPUT_TOKENS 可覆盖。",
-    descriptionEn: "Max output tokens. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS.",
+    descriptionEn: "Maximum output tokens for the answer. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS.",
   })),
   timeoutMs: Type.Optional(Type.Integer({
     minimum: 1,
@@ -136,13 +140,13 @@ export const configFileSchema = Type.Object({
     minimum: 1,
     default: 50_000,
     descriptionZh: "返回给 LLM 的文本最大字符数（超出截断）。环境变量 DEEPSEEK_MAX_RESULT_CHARS 可覆盖。",
-    descriptionEn: "Max result chars before truncation. Overridable via DEEPSEEK_MAX_RESULT_CHARS.",
+    descriptionEn: "Max chars returned to the LLM; longer text is truncated. Overridable via DEEPSEEK_MAX_RESULT_CHARS.",
   })),
   prices: Type.Optional(pricesSchema),
 }, {
   additionalProperties: false,
-  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；峰谷定价按官方文档（北京时间每日 9:00-12:00 / 14:00-18:00，即将执行）。",
-  descriptionEn: "Config file for the deepseek-web-search extension. Peak pricing per official docs (daily 09:00-12:00 / 14:00-18:00 Beijing time, pending).",
+  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；峰谷定价可选（北京时间每日 9:00-12:00 / 14:00-18:00，不配置即全时段平峰价）。",
+  descriptionEn: "Config file for the deepseek-web-search extension; validation rules match the runtime. Peak pricing is optional (daily 09:00-12:00 / 14:00-18:00 Beijing time; omit it for flat off-peak pricing).",
 });
 
 /** 配置文件结构类型（由 configFileSchema 派生，单一来源） */

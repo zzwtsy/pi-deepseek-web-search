@@ -14,7 +14,7 @@ A [pi](https://github.com/earendil-works/pi) extension that gives any model in y
 - **Synthesized answer with citations** returned by DeepSeek, plus a record of the executed search actions
 - **Configurable** via env vars, project config file, or global config file (in that order of precedence)
 - **TTL result cache** — repeated identical queries within the TTL hit the cache and cost nothing
-- **Real cost reporting** — token prices are configurable (CNY per million tokens) with future peak-hour pricing support, and the reported `Usage.cost` reflects the actual estimated spend
+- **Real cost reporting** — token prices are configurable (CNY per million tokens) with optional peak-hour pricing, and the reported `Usage.cost` reflects the actual estimated spend
 - **Model selectable** — `deepseek-v4-flash` (default) now; switch to `deepseek-v4-pro` by config once it supports the Responses API
 - **Generated JSON Schema** — the config file definition is a single source of truth (`src/config-schema.ts`); English and Chinese schemas are generated from it (see [Schema](#schema))
 
@@ -38,11 +38,13 @@ Config is read from, in order of precedence (later sources override earlier ones
 2. Project config file: `.pi/deepseek-web-search.json`
 3. Global config file: `~/.pi/agent/deepseek-web-search.json`
 
-### Example (`.pi/deepseek-web-search.json`)
+> Config is cached in the extension process per working directory. After changing config files or environment variables, restart pi (or run `/deepseek-search status` to force a reload) before searching again.
+
+### Example (`~/.pi/agent/deepseek-web-search.json`)
 
 ```jsonc
 {
-  "$schema": "../node_modules/pi-deepseek-web-search/schema/deepseek-web-search.config.schema.en.json",
+  "$schema": "./npm/node_modules/pi-deepseek-web-search/schema/deepseek-web-search.config.schema.en.json",
   "apiKey": "sk-...",
   "model": "deepseek-v4-flash",
   "reasoningEffort": "low",
@@ -76,6 +78,8 @@ Config is read from, in order of precedence (later sources override earlier ones
 
 Environment variable equivalents: `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_REASONING_EFFORT`, `DEEPSEEK_MAX_OUTPUT_TOKENS`, `DEEPSEEK_TIMEOUT_MS`, `DEEPSEEK_CACHE_TTL_MS`, `DEEPSEEK_MAX_RESULT_CHARS`, `DEEPSEEK_PRICE_INPUT`, `DEEPSEEK_PRICE_CACHED_INPUT`, `DEEPSEEK_PRICE_OUTPUT`.
 
+Numeric environment variables accept canonical decimal strings only, for example `30000` or `1.5`; forms such as `+1`, `.5`, `1e3`, `30_000`, and `30s` are rejected.
+
 ### Pricing and peak hours
 
 Default prices follow the [official DeepSeek pricing page](https://api-docs.deepseek.com/zh-cn/quick_start/pricing) (deepseek-v4-flash: 1 / 0.02 / 2 CNY per million tokens). Pricing is configurable, and a peak-hour override is already supported:
@@ -89,14 +93,14 @@ Default prices follow the [official DeepSeek pricing page](https://api-docs.deep
 }
 ```
 
-- Peak hours follow the official definition: **daily, Beijing time** 09:00–12:00 and 14:00–18:00 (the pricing scheme is *pending* official rollout — omit `peak` until then)
+- Peak hours follow the official definition: **daily, Beijing time** 09:00–12:00 and 14:00–18:00 (optional — omit `peak` for flat off-peak pricing)
 - Peak price = base × `multiplier`, applied to all billing items
 - Per-model overrides: `prices.models."deepseek-v4-pro" = { "inputPerMillion": 3, "cachedInputPerMillion": 0.025, "outputPerMillion": 6 }` — used automatically when `model` is set to that model
-- The `Usage.cost` reported by the tool reflects the computed estimate; cached hits report no cost (no API call happened)
+- The `Usage.cost` reported by the tool reflects the computed estimate; cached hits report no cost (no API call happened). `details.usage` still keeps the first search's raw usage record for inspection
 
 ### Model support
 
-The Responses API currently supports only `deepseek-v4-flash`; `deepseek-v4-pro` support is expected in early August 2026. Set `"model": "deepseek-v4-pro"` (or `DEEPSEEK_MODEL`) once it is available — prices switch automatically via `prices.models`.
+The Responses API currently supports only `deepseek-v4-flash`; `deepseek-v4-pro` support is expected once it ships Responses API support. Set `"model": "deepseek-v4-pro"` (or `DEEPSEEK_MODEL`) once it is available — prices switch automatically via `prices.models`.
 
 ## Usage
 
@@ -104,7 +108,7 @@ Ask the model a time-sensitive or external question; it will invoke `deepseek_we
 
 > What is the weather in Beijing today?
 
-The tool returns DeepSeek's synthesized answer with citations plus the executed search actions. Results are cached per `model:mode:query` for `cacheTtlMs`.
+The tool returns DeepSeek's synthesized answer with citations plus the executed search actions. Results are cached per working directory, base URL, `model:mode:query` for `cacheTtlMs`.
 
 The `/deepseek-search` command shows config status (key configured, model, cache size) and can clear the cache.
 

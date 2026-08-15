@@ -7,7 +7,8 @@ interface CacheEntry<T> {
 
 export class TtlCache<T> {
   private readonly entries = new Map<string, CacheEntry<T>>();
-  private readonly ttlMs: number;
+  /** 缓存 TTL（毫秒），构造时固定；调用方据此检测配置变化以重建缓存 */
+  readonly ttlMs: number;
 
   constructor(ttlMs: number) {
     this.ttlMs = ttlMs;

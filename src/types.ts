@@ -10,9 +10,6 @@ export const deepseekWebSearchSchema = Type.Object({
   mode: Type.Optional(
     StringEnum(["answer", "results"] as const, { description: "answer: full synthesized answer with citations; results: compact answer only." }),
   ),
-  maxResults: Type.Optional(
-    Type.Number({ description: "Hint for the number of sources to cite (informational only)." }),
-  ),
 });
 
 export type DeepSeekWebSearchInput = Static<typeof deepseekWebSearchSchema>;
