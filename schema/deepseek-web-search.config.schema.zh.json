@@ -20,7 +20,7 @@
       "default": "deepseek-v4-flash",
       "minLength": 1,
       "pattern": "^(?!\\s*$)",
-      "description": "模型名。Responses API 支持 deepseek-v4-flash；v4-pro 支持后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。"
+      "description": "模型名。deepseek-v4-flash 与 deepseek-v4-pro 均支持 Responses API；切换模型后价格自动取 prices.models。环境变量 DEEPSEEK_MODEL 可覆盖。"
     },
     "reasoningEffort": {
       "type": "string",
@@ -28,16 +28,17 @@
         "off",
         "low",
         "high",
-        "auto"
+        "max"
       ],
-      "default": "low",
-      "description": "推理强度：off 关闭思考（省 token）、low/high 控制思考量、auto 用模型默认行为。环境变量 DEEPSEEK_REASONING_EFFORT 可覆盖。"
+      "default": "high",
+      "description": "推理强度：off 关闭思考（省 token）、low/high/max 控制思考量。官方默认 high。环境变量 DEEPSEEK_REASONING_EFFORT 可覆盖。"
     },
     "maxOutputTokens": {
       "type": "integer",
       "minimum": 1,
+      "maximum": 384000,
       "default": 4096,
-      "description": "回答最大输出 token 数。环境变量 DEEPSEEK_MAX_OUTPUT_TOKENS 可覆盖。"
+      "description": "回答最大输出 token 数（官方上限 384K）。环境变量 DEEPSEEK_MAX_OUTPUT_TOKENS 可覆盖。"
     },
     "timeoutMs": {
       "type": "integer",
@@ -63,20 +64,20 @@
         "inputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1,
-          "description": "输入单价（缓存未命中）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。"
+          "default": 1.5,
+          "description": "输入单价，缓存未命中（空闲价）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。"
         },
         "cachedInputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 0.02,
-          "description": "输入单价（缓存命中）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。"
+          "default": 0.05,
+          "description": "输入单价，缓存命中（空闲价）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。"
         },
         "outputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 2,
-          "description": "输出单价。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。"
+          "default": 4.5,
+          "description": "输出单价（空闲价）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。"
         },
         "peak": {
           "type": "object",
@@ -112,6 +113,19 @@
             }
           },
           "additionalProperties": false,
+          "default": {
+            "multiplier": 2,
+            "hours": [
+              [
+                "09:00",
+                "12:00"
+              ],
+              [
+                "14:00",
+                "18:00"
+              ]
+            ]
+          },
           "description": "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。"
         },
         "models": {
@@ -180,7 +194,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "价格配置，单位：元/百万 tokens。默认值为官方平峰价。"
+      "description": "价格配置，单位：元/百万 tokens。默认值为官方空闲价，并默认启用官方峰谷时段。"
     }
   },
   "additionalProperties": false,

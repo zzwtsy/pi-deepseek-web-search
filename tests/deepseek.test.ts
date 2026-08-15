@@ -70,7 +70,7 @@ describe("DeepSeekClient.search", () => {
     expect(body.tools).toEqual([{ type: "web_search" }]);
     expect(body.tool_choice).toEqual({ type: "web_search" });
     expect(body.max_output_tokens).toBe(4096);
-    expect(body.reasoning).toBeUndefined(); // 默认 auto → 不传
+    expect(body.reasoning).toBeUndefined(); // 未传 effort → 省略字段，API 使用默认值（当前为 high）
   });
 
   it("构造时 model 透传到请求体", async () => {
@@ -80,12 +80,13 @@ describe("DeepSeekClient.search", () => {
     expect(body.model).toBe("deepseek-v4-pro");
   });
 
-  it("reasoningEffort 映射：off/low/high 传字段，auto 不传", async () => {
+  it("reasoningEffort 映射：off/low/high/max 传字段，缺省不传", async () => {
     const cases: Array<[string, Record<string, unknown> | undefined]> = [
       ["off", { effort: "none" }],
       ["low", { effort: "low" }],
       ["high", { effort: "high" }],
-      ["auto", undefined],
+      ["max", { effort: "max" }],
+      ["undefined", undefined],
     ];
     for (const [effort, expected] of cases) {
       const { fetchFn, calls } = mockFetch([() => jsonResponse(200, { output: [] })]);
@@ -106,11 +107,11 @@ describe("DeepSeekClient.search", () => {
     expect(body.tool_choice).toEqual({ type: "web_search" });
   });
 
-  it("buildReasoningField 四态映射", () => {
+  it("buildReasoningField 映射 off/low/high/max，缺省不传", () => {
     expect(buildReasoningField("off")).toEqual({ effort: "none" });
     expect(buildReasoningField("low")).toEqual({ effort: "low" });
     expect(buildReasoningField("high")).toEqual({ effort: "high" });
-    expect(buildReasoningField("auto")).toBeUndefined();
+    expect(buildReasoningField("max")).toEqual({ effort: "max" });
     expect(buildReasoningField(undefined)).toBeUndefined();
   });
 

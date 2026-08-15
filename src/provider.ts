@@ -1,6 +1,6 @@
 // provider.ts —— 搜索后端抽象（消费者拥有：按业务需要设计，而非按厂商 API）。
 // 纯类型 + 错误类，零 IO、零 src 内 import；未来新增后端（如 Anthropic）只实现 SearchProvider。
-export type ReasoningEffort = "off" | "low" | "high" | "auto";
+export type ReasoningEffort = "off" | "low" | "high" | "max";
 
 /** 搜索选项：由调用方从配置映射而来，各后端按需使用 */
 export interface SearchOptions {
@@ -63,7 +63,7 @@ export interface ModelPriceConfig {
   peak?: PeakPriceConfig;
 }
 
-/** 价格配置：元/百万 tokens（依据官方定价页，deepseek-v4-flash 为 1 / 0.02 / 2） */
+/** 价格配置：元/百万 tokens（官方空闲价：deepseek-v4-flash 为 1.5 / 0.05 / 4.5；deepseek-v4-pro 见 models 默认表） */
 export interface PriceConfig {
   /** 输入单价（缓存未命中） */
   inputPerMillion: number;

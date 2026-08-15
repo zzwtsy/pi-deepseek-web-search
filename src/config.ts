@@ -10,7 +10,7 @@ import process from "node:process";
 // 设计为纯函数（注入 env / readFile / 路径），便于单元测试。
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { Check, Errors } from "typebox/value";
-import { configFileSchema } from "./config-schema.js";
+import { configFileSchema, DEFAULT_PEAK } from "./config-schema.js";
 
 export const CONFIG_FILE_NAME = "deepseek-web-search.json";
 export const GLOBAL_CONFIG_DIR = join(".pi", "agent");
@@ -20,7 +20,7 @@ export interface SearchConfig {
   apiKey: string;
   /** API 基础地址（自建代理时修改） */
   baseUrl: string;
-  /** 模型名（Responses API 开放 deepseek-v4-flash；v4-pro 适配后改这里即切换） */
+  /** 模型名（deepseek-v4-flash 与 deepseek-v4-pro 均支持 Responses API） */
   model: string;
   /** 推理强度（off 关闭思考以省 token） */
   reasoningEffort: ReasoningEffort;
@@ -32,7 +32,7 @@ export interface SearchConfig {
   cacheTtlMs: number;
   /** 返回给 LLM 的文本最大字符数（超出截断） */
   maxResultChars: number;
-  /** 价格配置（元/百万 tokens，默认官方平峰价） */
+  /** 价格配置（元/百万 tokens，默认官方空闲价并启用峰谷） */
   prices: PriceConfig;
 }
 
@@ -43,21 +43,23 @@ export type { ConfigFileShape } from "./config-schema.js";
 export const DEFAULT_CONFIG: Omit<SearchConfig, "apiKey"> = {
   baseUrl: "https://api.deepseek.com",
   model: "deepseek-v4-flash",
-  reasoningEffort: "low",
+  reasoningEffort: "high",
   maxOutputTokens: 4096,
   timeoutMs: 30_000,
   cacheTtlMs: 300_000,
   maxResultChars: 50_000,
   prices: {
-    inputPerMillion: 1,
-    cachedInputPerMillion: 0.02,
-    outputPerMillion: 2,
-    // v4-pro 官方价预置：Responses API 适配后切 model 即用
+    // 官方空闲价；高峰价 = 空闲价 × DEFAULT_PEAK.multiplier
+    inputPerMillion: 1.5,
+    cachedInputPerMillion: 0.05,
+    outputPerMillion: 4.5,
+    peak: structuredClone(DEFAULT_PEAK),
+    // v4-pro 官方空闲价预置，切 model 即用
     models: {
       "deepseek-v4-pro": {
-        inputPerMillion: 3,
-        cachedInputPerMillion: 0.025,
-        outputPerMillion: 6,
+        inputPerMillion: 4.5,
+        cachedInputPerMillion: 0.15,
+        outputPerMillion: 13.5,
       },
     },
   },
@@ -82,7 +84,7 @@ export interface LoadConfigOptions {
   homeDir?: string;
 }
 
-const REASONING_EFFORTS: readonly ReasoningEffort[] = ["off", "low", "high", "auto"];
+const REASONING_EFFORTS: readonly ReasoningEffort[] = ["off", "low", "high", "max"];
 
 /** 数字字段的环境变量名 → 配置字段名映射 */
 const NUMBER_FIELD_ENV_NAMES: Record<string, keyof Pick<SearchConfig, "maxOutputTokens" | "timeoutMs" | "cacheTtlMs" | "maxResultChars">> = {
@@ -91,6 +93,9 @@ const NUMBER_FIELD_ENV_NAMES: Record<string, keyof Pick<SearchConfig, "maxOutput
   DEEPSEEK_CACHE_TTL_MS: "cacheTtlMs",
   DEEPSEEK_MAX_RESULT_CHARS: "maxResultChars",
 };
+
+/** DeepSeek 官方单次响应最大输出 token 数 */
+const MAX_OUTPUT_TOKENS = 384_000;
 
 /** 校验 peak.hours 的 start < end（半开区间，JSON Schema 无法表达） */
 function validatePeakHours(hours: unknown, path: string, source: string): void {
@@ -213,6 +218,9 @@ function configFromEnv(env: NodeJS.ProcessEnv): ConfigFileShape {
     const num = Number(trimmed);
     if (!/^\d+$/.test(trimmed) || !Number.isFinite(num) || num <= 0) {
       throw new ConfigError(`Invalid ${envName}: expected a positive integer`);
+    }
+    if (field === "maxOutputTokens" && num > MAX_OUTPUT_TOKENS) {
+      throw new ConfigError(`Invalid ${envName}: expected at most ${MAX_OUTPUT_TOKENS}`);
     }
     shape[field] = num;
   }

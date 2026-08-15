@@ -14,8 +14,8 @@ A [pi](https://github.com/earendil-works/pi) extension that gives any model in y
 - **Synthesized answer with citations** returned by DeepSeek, plus a record of the executed search actions
 - **Configurable** via env vars, project config file, or global config file (in that order of precedence)
 - **TTL result cache** — repeated identical queries within the TTL hit the cache and cost nothing
-- **Real cost reporting** — token prices are configurable (CNY per million tokens) with optional peak-hour pricing, and the reported `Usage.cost` reflects the actual estimated spend
-- **Model selectable** — `deepseek-v4-flash` (default) now; switch to `deepseek-v4-pro` by config once it supports the Responses API
+- **Real cost reporting** — token prices are configurable (CNY per million tokens), official peak/off-peak pricing is enabled by default, and the reported `Usage.cost` reflects the actual estimated spend
+- **Model selectable** — `deepseek-v4-flash` (default) and `deepseek-v4-pro` both support the Responses API; switch models via config
 - **Generated JSON Schema** — the config file definition is a single source of truth (`src/config-schema.ts`); English and Chinese schemas are generated from it (see [Schema](#schema))
 
 ## Install
@@ -47,11 +47,11 @@ Config is read from, in order of precedence (later sources override earlier ones
   "$schema": "./npm/node_modules/pi-deepseek-web-search/schema/deepseek-web-search.config.schema.en.json",
   "apiKey": "sk-...",
   "model": "deepseek-v4-flash",
-  "reasoningEffort": "low",
+  "reasoningEffort": "high",
   "prices": {
-    "inputPerMillion": 1,
-    "cachedInputPerMillion": 0.02,
-    "outputPerMillion": 2
+    "inputPerMillion": 1.5,
+    "cachedInputPerMillion": 0.05,
+    "outputPerMillion": 4.5
   }
 }
 ```
@@ -65,15 +65,15 @@ Config is read from, in order of precedence (later sources override earlier ones
 | `apiKey` | string | — | DeepSeek API key (required). `DEEPSEEK_API_KEY` overrides |
 | `baseUrl` | string | `https://api.deepseek.com` | API base URL (change when using a proxy) |
 | `model` | string | `deepseek-v4-flash` | Model name. `DEEPSEEK_MODEL` overrides |
-| `reasoningEffort` | `off`/`low`/`high`/`auto` | `low` | `off` disables thinking to save tokens |
-| `maxOutputTokens` | int ≥ 1 | `4096` | Max output tokens |
+| `reasoningEffort` | `off`/`low`/`high`/`max` | `high` | `off` disables thinking; `low`/`high`/`max` control the amount |
+| `maxOutputTokens` | int 1–384000 | `4096` | Max output tokens (official limit: 384K) |
 | `timeoutMs` | int ≥ 1 | `30000` | Request timeout in ms |
 | `cacheTtlMs` | int ≥ 1 | `300000` | Result cache TTL in ms |
 | `maxResultChars` | int ≥ 1 | `50000` | Max chars of the answer returned to the model |
-| `prices.inputPerMillion` | number > 0 | `1` | Input price, cache miss (CNY / 1M tokens) |
-| `prices.cachedInputPerMillion` | number > 0 | `0.02` | Input price, cache hit |
-| `prices.outputPerMillion` | number > 0 | `2` | Output price |
-| `prices.peak` | object | — | Peak-hour pricing override (optional, see below) |
+| `prices.inputPerMillion` | number > 0 | `1.5` | Input price, cache miss, off-peak (CNY / 1M tokens) |
+| `prices.cachedInputPerMillion` | number > 0 | `0.05` | Input price, cache hit, off-peak |
+| `prices.outputPerMillion` | number > 0 | `4.5` | Output price, off-peak |
+| `prices.peak` | object | official peak | Peak-hour pricing override (default follows the official schedule, see below) |
 | `prices.models` | object | — | Per-model price overrides keyed by model name |
 
 Environment variable equivalents: `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_REASONING_EFFORT`, `DEEPSEEK_MAX_OUTPUT_TOKENS`, `DEEPSEEK_TIMEOUT_MS`, `DEEPSEEK_CACHE_TTL_MS`, `DEEPSEEK_MAX_RESULT_CHARS`, `DEEPSEEK_PRICE_INPUT`, `DEEPSEEK_PRICE_CACHED_INPUT`, `DEEPSEEK_PRICE_OUTPUT`.
@@ -82,7 +82,16 @@ Numeric environment variables accept canonical decimal strings only, for example
 
 ### Pricing and peak hours
 
-Default prices follow the [official DeepSeek pricing page](https://api-docs.deepseek.com/zh-cn/quick_start/pricing) (deepseek-v4-flash: 1 / 0.02 / 2 CNY per million tokens). Pricing is configurable, and a peak-hour override is already supported:
+From 2026-08-17 00:00 Beijing time, DeepSeek uses peak/off-peak pricing. Defaults follow the [official pricing page](https://api-docs.deepseek.com/zh-cn/quick_start/pricing):
+
+| Model | Period | Input (cache miss) | Input (cache hit) | Output |
+| --- | --- | --- | --- | --- |
+| `deepseek-v4-flash` | off-peak | 1.5 | 0.05 | 4.5 |
+| `deepseek-v4-flash` | peak | 3.0 | 0.10 | 9.0 |
+| `deepseek-v4-pro` | off-peak | 4.5 | 0.15 | 13.5 |
+| `deepseek-v4-pro` | peak | 9.0 | 0.30 | 27.0 |
+
+All values are CNY per million tokens. Peak hours are **daily, Beijing time** 09:00–12:00 and 14:00–18:00, and peak price = off-peak × 2. The official peak schedule is enabled by default; set `prices.peak` only to override it:
 
 ```jsonc
 "prices": {
@@ -93,14 +102,12 @@ Default prices follow the [official DeepSeek pricing page](https://api-docs.deep
 }
 ```
 
-- Peak hours follow the official definition: **daily, Beijing time** 09:00–12:00 and 14:00–18:00 (optional — omit `peak` for flat off-peak pricing)
-- Peak price = base × `multiplier`, applied to all billing items
-- Per-model overrides: `prices.models."deepseek-v4-pro" = { "inputPerMillion": 3, "cachedInputPerMillion": 0.025, "outputPerMillion": 6 }` — used automatically when `model` is set to that model
+- The per-model pro prices above are preconfigured under `prices.models."deepseek-v4-pro"` and apply automatically when `model` is set to `deepseek-v4-pro`
 - The `Usage.cost` reported by the tool reflects the computed estimate; cached hits report no cost (no API call happened). `details.usage` still keeps the first search's raw usage record for inspection
 
 ### Model support
 
-The Responses API currently supports only `deepseek-v4-flash`; `deepseek-v4-pro` support is expected once it ships Responses API support. Set `"model": "deepseek-v4-pro"` (or `DEEPSEEK_MODEL`) once it is available — prices switch automatically via `prices.models`.
+`deepseek-v4-flash` and `deepseek-v4-pro` both support the Responses API. The aliases currently point to DeepSeek-V4-Flash-0731 and DeepSeek-V4-Pro-0813; call names remain unchanged. `deepseek-v4-flash` is the default; set `"model": "deepseek-v4-pro"` (or `DEEPSEEK_MODEL`) to switch — prices switch automatically via `prices.models`.
 
 ## Usage
 

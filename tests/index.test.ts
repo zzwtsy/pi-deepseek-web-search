@@ -12,12 +12,12 @@ vi.mock("../src/config.js", async (importOriginal) => {
       apiKey: "sk-test",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash",
-      reasoningEffort: "low",
+      reasoningEffort: "high",
       maxOutputTokens: 4096,
       timeoutMs: 30_000,
       cacheTtlMs: 300_000,
       maxResultChars: 50_000,
-      prices: { inputPerMillion: 1, cachedInputPerMillion: 0.02, outputPerMillion: 2 },
+      prices: { inputPerMillion: 1.5, cachedInputPerMillion: 0.05, outputPerMillion: 4.5 },
     }),
   };
 });

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildSchemaDoc, configFileSchema } from "../src/config-schema.js";
+import { buildSchemaDoc, configFileSchema, DEFAULT_PEAK } from "../src/config-schema.js";
 import { ConfigError, ConfigProvider, DEFAULT_CONFIG, loadConfig, parseConfigFile, validateConfig } from "../src/config.js";
 
 const CONFIG_DIR = ".pi";
@@ -34,10 +34,10 @@ function writeProject(dir: { cwd: string }, config: object) {
 describe("parseConfigFile", () => {
   it("解析合法配置", () => {
     const shape = parseConfigFile(
-      JSON.stringify({ apiKey: "sk-1", reasoningEffort: "high", maxOutputTokens: 2048 }),
+      JSON.stringify({ apiKey: "sk-1", reasoningEffort: "max", maxOutputTokens: 2048 }),
       "test.json",
     );
-    expect(shape).toEqual({ apiKey: "sk-1", reasoningEffort: "high", maxOutputTokens: 2048 });
+    expect(shape).toEqual({ apiKey: "sk-1", reasoningEffort: "max", maxOutputTokens: 2048 });
   });
 
   it("非法 JSON / 非对象 / 非法字段值抛 ConfigError", () => {
@@ -47,6 +47,8 @@ describe("parseConfigFile", () => {
     expect(() => parseConfigFile(JSON.stringify({ reasoningEffort: "ultra" }), "f.json")).toThrow(ConfigError);
     expect(() => parseConfigFile(JSON.stringify({ maxOutputTokens: -1 }), "f.json")).toThrow(ConfigError);
     expect(() => parseConfigFile(JSON.stringify({ maxOutputTokens: 1.5 }), "f.json")).toThrow(ConfigError);
+    expect(() => parseConfigFile(JSON.stringify({ maxOutputTokens: 384_001 }), "f.json")).toThrow(ConfigError);
+    expect(() => parseConfigFile(JSON.stringify({ reasoningEffort: "auto" }), "f.json")).toThrow(ConfigError);
   });
 });
 
@@ -104,7 +106,9 @@ describe("loadConfig 优先级", () => {
   it("非法环境变量抛 ConfigError", async () => {
     const dir = makeDirs();
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_REASONING_EFFORT: "ultra" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_REASONING_EFFORT: "auto" } })).rejects.toThrow(ConfigError);
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "abc" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_MAX_OUTPUT_TOKENS: "384001" } })).rejects.toThrow(ConfigError);
   });
 
   it("env 数字解析拒绝畸形值（而非 parseInt/parseFloat 静默截断）", async () => {
@@ -131,8 +135,8 @@ describe("loadConfig 优先级", () => {
     const config = await loadConfig({ ...dir, env: {} });
     config.prices.inputPerMillion = 999;
     config.prices.models!["deepseek-v4-pro"].outputPerMillion = 999;
-    expect(DEFAULT_CONFIG.prices.inputPerMillion).toBe(1);
-    expect(DEFAULT_CONFIG.prices.models?.["deepseek-v4-pro"]?.outputPerMillion).toBe(6);
+    expect(DEFAULT_CONFIG.prices.inputPerMillion).toBe(1.5);
+    expect(DEFAULT_CONFIG.prices.models?.["deepseek-v4-pro"]?.outputPerMillion).toBe(13.5);
   });
 });
 
@@ -166,14 +170,15 @@ describe("prices 配置", () => {
     expect(() => bad({ peak: { multiplier: 2, hours: "09:00" } })).toThrow(ConfigError);
   });
 
-  it("loadConfig：默认价格为官方平峰价（含 v4-pro 覆盖表）", async () => {
+  it("loadConfig：默认价格为官方空闲价并启用峰谷（含 v4-pro 覆盖表）", async () => {
     const dir = makeDirs();
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.prices).toEqual({
-      inputPerMillion: 1,
-      cachedInputPerMillion: 0.02,
-      outputPerMillion: 2,
-      models: { "deepseek-v4-pro": { inputPerMillion: 3, cachedInputPerMillion: 0.025, outputPerMillion: 6 } },
+      inputPerMillion: 1.5,
+      cachedInputPerMillion: 0.05,
+      outputPerMillion: 4.5,
+      peak: DEFAULT_PEAK,
+      models: { "deepseek-v4-pro": { inputPerMillion: 4.5, cachedInputPerMillion: 0.15, outputPerMillion: 13.5 } },
     });
   });
 
@@ -182,9 +187,9 @@ describe("prices 配置", () => {
     writeProject(dir, { prices: { inputPerMillion: 5 } });
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.prices.inputPerMillion).toBe(5);
-    expect(config.prices.cachedInputPerMillion).toBe(0.02); // 默认保留
-    expect(config.prices.outputPerMillion).toBe(2);
-    expect(config.prices.peak).toBeUndefined();
+    expect(config.prices.cachedInputPerMillion).toBe(0.05); // 默认保留
+    expect(config.prices.outputPerMillion).toBe(4.5);
+    expect(config.prices.peak).toEqual(DEFAULT_PEAK);
   });
 
   it("loadConfig：文件 peak 生效，env 单价覆盖文件", async () => {
@@ -233,9 +238,9 @@ describe("model 与 prices.models", () => {
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.model).toBe("deepseek-v4-flash");
     expect(config.prices.models?.["deepseek-v4-pro"]).toEqual({
-      inputPerMillion: 3,
-      cachedInputPerMillion: 0.025,
-      outputPerMillion: 6,
+      inputPerMillion: 4.5,
+      cachedInputPerMillion: 0.15,
+      outputPerMillion: 13.5,
     });
   });
 
@@ -360,6 +365,7 @@ describe("schema 生成一致性", () => {
     expect(prices.properties?.inputPerMillion.default).toBe(DEFAULT_CONFIG.prices.inputPerMillion);
     expect(prices.properties?.cachedInputPerMillion.default).toBe(DEFAULT_CONFIG.prices.cachedInputPerMillion);
     expect(prices.properties?.outputPerMillion.default).toBe(DEFAULT_CONFIG.prices.outputPerMillion);
+    expect(prices.properties?.peak?.default).toEqual(DEFAULT_PEAK);
   });
 });
 

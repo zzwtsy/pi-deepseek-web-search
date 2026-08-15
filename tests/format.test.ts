@@ -114,11 +114,11 @@ describe("normalizeQuery", () => {
   });
 });
 
-/** 默认平峰价格（与 DEFAULT_CONFIG 一致） */
+/** 默认空闲价格（与 DEFAULT_CONFIG 一致） */
 const DEFAULT_PRICES: PriceConfig = {
-  inputPerMillion: 1,
-  cachedInputPerMillion: 0.02,
-  outputPerMillion: 2,
+  inputPerMillion: 1.5,
+  cachedInputPerMillion: 0.05,
+  outputPerMillion: 4.5,
 };
 
 /** 官方高峰时段（北京时间每日） */
@@ -156,16 +156,16 @@ describe("isPeakTime", () => {
 });
 
 describe("computeCost", () => {
-  it("默认平峰价：未命中输入 1 元/百万、命中 0.02、输出 2", () => {
+  it("默认空闲价：未命中输入 1.5 元/百万、命中 0.05、输出 4.5", () => {
     const cost = computeCost(makeUsage(), DEFAULT_PRICES, beijingTime(3, 10));
-    expect(cost.input).toBeCloseTo(0.8); // (1M - 200k) / 1M × 1
-    expect(cost.cacheRead).toBeCloseTo(0.004); // 200k / 1M × 0.02
-    expect(cost.output).toBeCloseTo(1); // 500k / 1M × 2
-    expect(cost.total).toBeCloseTo(1.804);
+    expect(cost.input).toBeCloseTo(1.2); // (1M - 200k) / 1M × 1.5
+    expect(cost.cacheRead).toBeCloseTo(0.01); // 200k / 1M × 0.05
+    expect(cost.output).toBeCloseTo(2.25); // 500k / 1M × 4.5
+    expect(cost.total).toBeCloseTo(3.46);
     expect(cost.cacheWrite).toBe(0);
   });
 
-  it("不配置 peak 时全时段平峰（官方执行峰谷前的现状）", () => {
+  it("不配置 peak 时全时段空闲价", () => {
     const cost = computeCost(makeUsage(), DEFAULT_PRICES, beijingTime(3, 10));
     const costNight = computeCost(makeUsage(), DEFAULT_PRICES, beijingTime(3, 22));
     expect(cost.total).toBeCloseTo(costNight.total);
@@ -176,15 +176,15 @@ describe("computeCost", () => {
     const peak = computeCost(makeUsage(), prices, beijingTime(3, 10));
     const off = computeCost(makeUsage(), prices, beijingTime(3, 22));
     expect(peak.total).toBeCloseTo(off.total * 2);
-    expect(peak.input).toBeCloseTo(1.6);
-    expect(peak.cacheRead).toBeCloseTo(0.008);
-    expect(peak.output).toBeCloseTo(2);
+    expect(peak.input).toBeCloseTo(2.4);
+    expect(peak.cacheRead).toBeCloseTo(0.02);
+    expect(peak.output).toBeCloseTo(4.5);
   });
 
   it("配置 peak 但不在高峰时段：按平峰价", () => {
     const prices: PriceConfig = { ...DEFAULT_PRICES, peak: { multiplier: 2, hours: PEAK_HOURS } };
     const cost = computeCost(makeUsage(), prices, beijingTime(3, 12));
-    expect(cost.total).toBeCloseTo(1.804);
+    expect(cost.total).toBeCloseTo(3.46);
   });
 
   it("零 token：成本全 0", () => {
@@ -195,7 +195,7 @@ describe("computeCost", () => {
   it("cachedTokens 超过 inputTokens 时未命中部分钳为 0（防御性）", () => {
     const cost = computeCost(makeUsage({ inputTokens: 100, cachedTokens: 500 }), DEFAULT_PRICES);
     expect(cost.input).toBe(0);
-    expect(cost.cacheRead).toBeCloseTo(0.00001);
+    expect(cost.cacheRead).toBeCloseTo(0.000025);
   });
 
   it("自定义价格生效", () => {
@@ -260,12 +260,12 @@ describe("resolvePrices", () => {
     const prices: PriceConfig = {
       ...BASE,
       models: {
-        "deepseek-v4-pro": { inputPerMillion: 3, cachedInputPerMillion: 0.025, outputPerMillion: 6 },
+        "deepseek-v4-pro": { inputPerMillion: 4.5, cachedInputPerMillion: 0.15, outputPerMillion: 13.5 },
       },
     };
     const cost = computeCost(makeUsage(), resolvePrices(prices, "deepseek-v4-pro"));
-    expect(cost.input).toBeCloseTo(2.4);
-    expect(cost.cacheRead).toBeCloseTo(0.005);
-    expect(cost.output).toBeCloseTo(3);
+    expect(cost.input).toBeCloseTo(3.6);
+    expect(cost.cacheRead).toBeCloseTo(0.03);
+    expect(cost.output).toBeCloseTo(6.75);
   });
 });

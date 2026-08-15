@@ -13,7 +13,7 @@ export interface DeepSeekClientOptions {
   apiKey: string;
   /** 注入 fetch 实现以便测试（默认全局 fetch） */
   fetchFn?: typeof fetch;
-  /** 默认模型，deepseek-v4-flash 提供 /responses */
+  /** 默认模型；deepseek-v4-flash 与 deepseek-v4-pro 均支持 /responses */
   model?: string;
 }
 
@@ -41,7 +41,7 @@ function cleanUrl(url: unknown): string | undefined {
   return url.split("#ws_call_id=")[0] ?? undefined;
 }
 
-/** reasoningEffort → 请求体 reasoning 字段（auto 时返回 undefined，不传该字段） */
+/** reasoningEffort → 请求体 reasoning 字段（undefined 时返回 undefined，不传该字段并使用 API 默认值） */
 export function buildReasoningField(effort?: ReasoningEffort): { effort: string } | undefined {
   switch (effort) {
     case "off":
@@ -50,7 +50,8 @@ export function buildReasoningField(effort?: ReasoningEffort): { effort: string 
       return { effort: "low" };
     case "high":
       return { effort: "high" };
-    case "auto":
+    case "max":
+      return { effort: "max" };
     case undefined:
       return undefined;
   }

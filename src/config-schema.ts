@@ -1,5 +1,5 @@
 import type { Static } from "typebox";
-import type { ReasoningEffort } from "./provider.js";
+import type { PeakPriceConfig, ReasoningEffort } from "./provider.js";
 // config-schema.ts —— 配置文件结构的单一事实来源（TypeBox）。
 // 派生：① ConfigFileShape 类型（config.ts 经 Static）② 运行时校验（Check/Errors）③ 中/英两份 JSON Schema（pnpm gen:schema）。
 // 双语注释约定：descriptionZh（中文）/ descriptionEn（英文），生成时映射为标准 description。
@@ -33,6 +33,20 @@ export const peakSchema = Type.Object({
   descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily.",
 });
 
+/** 官方默认峰谷配置（北京时间每日 9:00-12:00 / 14:00-18:00，高峰价 = 空闲价 × 2） */
+export const DEFAULT_PEAK: PeakPriceConfig = {
+  multiplier: 2,
+  hours: [["09:00", "12:00"], ["14:00", "18:00"]],
+};
+
+/** 带默认值的顶层 peak schema；per-model peak 继续使用无默认值的 peakSchema */
+const defaultPeakSchema = Type.Object(peakSchema.properties, {
+  additionalProperties: false,
+  default: DEFAULT_PEAK,
+  descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。",
+  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily.",
+});
+
 /** 单模型价格覆盖（部分覆盖：缺省项回退顶层价格；无 models 键 + additionalProperties:false 天然禁止嵌套） */
 export const modelPriceSchema = Type.Object({
   inputPerMillion: Type.Optional(Type.Number({
@@ -61,31 +75,31 @@ export const modelPriceSchema = Type.Object({
 export const pricesSchema = Type.Object({
   inputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 1,
-    descriptionZh: "输入单价（缓存未命中）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。",
-    descriptionEn: "Input price, cache miss. Overridable via DEEPSEEK_PRICE_INPUT.",
+    default: 1.5,
+    descriptionZh: "输入单价，缓存未命中（空闲价）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。",
+    descriptionEn: "Input price, cache miss (off-peak). Overridable via DEEPSEEK_PRICE_INPUT.",
   })),
   cachedInputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 0.02,
-    descriptionZh: "输入单价（缓存命中）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。",
-    descriptionEn: "Input price, cache hit. Overridable via DEEPSEEK_PRICE_CACHED_INPUT.",
+    default: 0.05,
+    descriptionZh: "输入单价，缓存命中（空闲价）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。",
+    descriptionEn: "Input price, cache hit (off-peak). Overridable via DEEPSEEK_PRICE_CACHED_INPUT.",
   })),
   outputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 2,
-    descriptionZh: "输出单价。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。",
-    descriptionEn: "Output price. Overridable via DEEPSEEK_PRICE_OUTPUT.",
+    default: 4.5,
+    descriptionZh: "输出单价（空闲价）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。",
+    descriptionEn: "Output price (off-peak). Overridable via DEEPSEEK_PRICE_OUTPUT.",
   })),
-  peak: Type.Optional(peakSchema),
+  peak: Type.Optional(defaultPeakSchema),
   models: Type.Optional(Type.Record(Type.String(), modelPriceSchema, {
     descriptionZh: "按模型覆盖的价格表（key = 模型名，命中优先；整块替换默认表）。",
     descriptionEn: "Per-model price overrides keyed by model name; a matching model takes precedence. Setting this field replaces the default table as a whole.",
   })),
 }, {
   additionalProperties: false,
-  descriptionZh: "价格配置，单位：元/百万 tokens。默认值为官方平峰价。",
-  descriptionEn: "Pricing in CNY per million tokens; defaults are the official off-peak prices.",
+  descriptionZh: "价格配置，单位：元/百万 tokens。默认值为官方空闲价，并默认启用官方峰谷时段。",
+  descriptionEn: "Pricing in CNY per million tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default.",
 });
 
 /** 配置文件结构（所有字段可选，按优先级合并）——单一事实来源 */
@@ -108,21 +122,22 @@ export const configFileSchema = Type.Object({
     default: "deepseek-v4-flash",
     minLength: 1,
     pattern: "^(?!\\s*$)",
-    descriptionZh: "模型名。Responses API 支持 deepseek-v4-flash；v4-pro 支持后改这里即切换（价格自动取 prices.models）。环境变量 DEEPSEEK_MODEL 可覆盖。",
-    descriptionEn: "Model name. The Responses API supports deepseek-v4-flash; switch to deepseek-v4-pro once supported (pricing resolves via prices.models). Overridable via DEEPSEEK_MODEL.",
+    descriptionZh: "模型名。deepseek-v4-flash 与 deepseek-v4-pro 均支持 Responses API；切换模型后价格自动取 prices.models。环境变量 DEEPSEEK_MODEL 可覆盖。",
+    descriptionEn: "Model name. Both deepseek-v4-flash and deepseek-v4-pro support the Responses API; pricing resolves via prices.models when switching models. Overridable via DEEPSEEK_MODEL.",
   })),
   reasoningEffort: Type.Optional(Type.Unsafe<ReasoningEffort>({
     type: "string",
-    enum: ["off", "low", "high", "auto"],
-    default: "low",
-    descriptionZh: "推理强度：off 关闭思考（省 token）、low/high 控制思考量、auto 用模型默认行为。环境变量 DEEPSEEK_REASONING_EFFORT 可覆盖。",
-    descriptionEn: "Reasoning effort: off disables thinking, low/high control the amount, auto uses the model default. Overridable via DEEPSEEK_REASONING_EFFORT.",
+    enum: ["off", "low", "high", "max"],
+    default: "high",
+    descriptionZh: "推理强度：off 关闭思考（省 token）、low/high/max 控制思考量。官方默认 high。环境变量 DEEPSEEK_REASONING_EFFORT 可覆盖。",
+    descriptionEn: "Reasoning effort: off disables thinking, low/high/max control the amount; the official default is high. Overridable via DEEPSEEK_REASONING_EFFORT.",
   })),
   maxOutputTokens: Type.Optional(Type.Integer({
     minimum: 1,
+    maximum: 384_000,
     default: 4096,
-    descriptionZh: "回答最大输出 token 数。环境变量 DEEPSEEK_MAX_OUTPUT_TOKENS 可覆盖。",
-    descriptionEn: "Maximum output tokens for the answer. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS.",
+    descriptionZh: "回答最大输出 token 数（官方上限 384K）。环境变量 DEEPSEEK_MAX_OUTPUT_TOKENS 可覆盖。",
+    descriptionEn: "Maximum output tokens for the answer; the official limit is 384K. Overridable via DEEPSEEK_MAX_OUTPUT_TOKENS.",
   })),
   timeoutMs: Type.Optional(Type.Integer({
     minimum: 1,
@@ -145,8 +160,8 @@ export const configFileSchema = Type.Object({
   prices: Type.Optional(pricesSchema),
 }, {
   additionalProperties: false,
-  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；峰谷定价可选（北京时间每日 9:00-12:00 / 14:00-18:00，不配置即全时段平峰价）。",
-  descriptionEn: "Config file for the deepseek-web-search extension; validation rules match the runtime. Peak pricing is optional (daily 09:00-12:00 / 14:00-18:00 Beijing time; omit it for flat off-peak pricing).",
+  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；默认启用官方峰谷定价（北京时间每日 9:00-12:00 / 14:00-18:00）。",
+  descriptionEn: "Config file for the deepseek-web-search extension; validation rules match the runtime. Official peak pricing is enabled by default (daily 09:00-12:00 / 14:00-18:00 Beijing time).",
 });
 
 /** 配置文件结构类型（由 configFileSchema 派生，单一来源） */
