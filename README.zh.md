@@ -14,7 +14,7 @@
 - **综合回答 + 引用**——由 DeepSeek 生成带引用的回答，同时返回执行的搜索动作记录
 - **配置灵活**——环境变量 / 项目配置文件 / 全局配置文件（优先级从高到低）
 - **TTL 结果缓存**——TTL 内相同查询直接命中缓存，零成本
-- **真实成本上报**——token 单价可配置（元/百万 tokens），默认启用官方峰谷定价；工具上报的 `Usage.cost` 为真实估算金额
+- **真实成本上报**——token 单价可配置（美元/百万 tokens），默认启用官方峰谷定价；工具上报的 `Usage.cost` 为真实估算金额
 - **模型可选**——`deepseek-v4-flash`（默认）与 `deepseek-v4-pro` 均支持 Responses API，改配置即切换
 - **生成式 JSON Schema**——配置文件定义单一来源（`src/config-schema.ts`），中/英两份 Schema 由它自动生成（见 [Schema](#schema)）
 
@@ -49,9 +49,9 @@ pi install npm:pi-deepseek-web-search
   "model": "deepseek-v4-flash",
   "reasoningEffort": "high",
   "prices": {
-    "inputPerMillion": 1.5,
-    "cachedInputPerMillion": 0.05,
-    "outputPerMillion": 4.5
+    "inputPerMillion": 0.22,
+    "cachedInputPerMillion": 0.007,
+    "outputPerMillion": 0.66
   }
 }
 ```
@@ -70,15 +70,15 @@ pi install npm:pi-deepseek-web-search
 | `timeoutMs` | int ≥ 1 | `30000` | 单次请求超时（毫秒） |
 | `cacheTtlMs` | int ≥ 1 | `300000` | 结果缓存 TTL（毫秒） |
 | `maxResultChars` | int ≥ 1 | `50000` | 返回给模型的回答最大字符数 |
-| `prices.inputPerMillion` | number > 0 | `1.5` | 输入单价，缓存未命中，空闲价（元/百万 tokens） |
-| `prices.cachedInputPerMillion` | number > 0 | `0.05` | 输入单价，缓存命中，空闲价 |
-| `prices.outputPerMillion` | number > 0 | `4.5` | 输出单价，空闲价 |
+| `prices.inputPerMillion` | number > 0 | `0.22` | 输入单价，缓存未命中，空闲价（美元/百万 tokens） |
+| `prices.cachedInputPerMillion` | number > 0 | `0.007` | 输入单价，缓存命中，空闲价（美元/百万 tokens） |
+| `prices.outputPerMillion` | number > 0 | `0.66` | 输出单价，空闲价（美元/百万 tokens） |
 | `prices.peak` | object | 官方高峰时段 | 峰谷定价覆盖（默认启用官方时段，见下） |
 | `prices.models` | object | — | 按模型覆盖的价格表（key = 模型名） |
 
 对应环境变量：`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`DEEPSEEK_REASONING_EFFORT`、`DEEPSEEK_MAX_OUTPUT_TOKENS`、`DEEPSEEK_TIMEOUT_MS`、`DEEPSEEK_CACHE_TTL_MS`、`DEEPSEEK_MAX_RESULT_CHARS`、`DEEPSEEK_PRICE_INPUT`、`DEEPSEEK_PRICE_CACHED_INPUT`、`DEEPSEEK_PRICE_OUTPUT`。
 
-数字类环境变量只接受规范十进制字符串，例如 `30000` 或 `1.5`；`+1`、`.5`、`1e3`、`30_000`、`30s` 等形式会被拒绝。
+数字类环境变量只接受规范十进制字符串，例如 `30000` 或 `1.5`；`+1`、`.5`、`1e3`、`30_000`、`30s` 等形式会被拒绝。价格类环境变量按美元/百万 tokens 解释。
 
 ### 价格与峰谷
 
@@ -86,12 +86,12 @@ pi install npm:pi-deepseek-web-search
 
 | 模型 | 时段 | 输入（缓存未命中） | 输入（缓存命中） | 输出 |
 | --- | --- | --- | --- | --- |
-| `deepseek-v4-flash` | 空闲 | 1.5 | 0.05 | 4.5 |
-| `deepseek-v4-flash` | 高峰 | 3.0 | 0.10 | 9.0 |
-| `deepseek-v4-pro` | 空闲 | 4.5 | 0.15 | 13.5 |
-| `deepseek-v4-pro` | 高峰 | 9.0 | 0.30 | 27.0 |
+| `deepseek-v4-flash` | 空闲 | $0.22 | $0.007 | $0.66 |
+| `deepseek-v4-flash` | 高峰 | $0.44 | $0.014 | $1.32 |
+| `deepseek-v4-pro` | 空闲 | $0.66 | $0.022 | $1.98 |
+| `deepseek-v4-pro` | 高峰 | $1.32 | $0.044 | $3.96 |
 
-单位均为元/百万 tokens。高峰时段为**北京时间每日** 9:00–12:00 与 14:00–18:00，高峰价格 = 空闲价 × 2。官方峰谷时段默认启用；只有需要覆盖时才配置 `prices.peak`：
+单位均为美元/百万 tokens。高峰时段为**北京时间每日** 9:00–12:00 与 14:00–18:00，高峰价格 = 空闲价 × 2。官方峰谷时段默认启用；只有需要覆盖时才配置 `prices.peak`：
 
 ```jsonc
 "prices": {

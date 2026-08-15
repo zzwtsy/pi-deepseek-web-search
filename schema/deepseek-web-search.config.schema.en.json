@@ -64,20 +64,20 @@
         "inputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1.5,
-          "description": "Input price, cache miss (off-peak). Overridable via DEEPSEEK_PRICE_INPUT."
+          "default": 0.22,
+          "description": "Input price, cache miss, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_INPUT."
         },
         "cachedInputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 0.05,
-          "description": "Input price, cache hit (off-peak). Overridable via DEEPSEEK_PRICE_CACHED_INPUT."
+          "default": 0.007,
+          "description": "Input price, cache hit, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_CACHED_INPUT."
         },
         "outputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 4.5,
-          "description": "Output price (off-peak). Overridable via DEEPSEEK_PRICE_OUTPUT."
+          "default": 0.66,
+          "description": "Output price, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_OUTPUT."
         },
         "peak": {
           "type": "object",
@@ -194,7 +194,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Pricing in CNY per million tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default."
+      "description": "Pricing in USD per 1M tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default."
     }
   },
   "additionalProperties": false,

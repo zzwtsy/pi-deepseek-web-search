@@ -32,7 +32,7 @@ export interface SearchConfig {
   cacheTtlMs: number;
   /** 返回给 LLM 的文本最大字符数（超出截断） */
   maxResultChars: number;
-  /** 价格配置（元/百万 tokens，默认官方空闲价并启用峰谷） */
+  /** 价格配置（USD / 1M tokens，默认官方空闲价并启用峰谷） */
   prices: PriceConfig;
 }
 
@@ -49,17 +49,17 @@ export const DEFAULT_CONFIG: Omit<SearchConfig, "apiKey"> = {
   cacheTtlMs: 300_000,
   maxResultChars: 50_000,
   prices: {
-    // 官方空闲价；高峰价 = 空闲价 × DEFAULT_PEAK.multiplier
-    inputPerMillion: 1.5,
-    cachedInputPerMillion: 0.05,
-    outputPerMillion: 4.5,
+    // 官方空闲价（USD）；高峰价 = 空闲价 × DEFAULT_PEAK.multiplier
+    inputPerMillion: 0.22,
+    cachedInputPerMillion: 0.007,
+    outputPerMillion: 0.66,
     peak: structuredClone(DEFAULT_PEAK),
-    // v4-pro 官方空闲价预置，切 model 即用
+    // v4-pro 官方空闲价预置（USD），切 model 即用
     models: {
       "deepseek-v4-pro": {
-        inputPerMillion: 4.5,
-        cachedInputPerMillion: 0.15,
-        outputPerMillion: 13.5,
+        inputPerMillion: 0.66,
+        cachedInputPerMillion: 0.022,
+        outputPerMillion: 1.98,
       },
     },
   },
@@ -229,7 +229,7 @@ function configFromEnv(env: NodeJS.ProcessEnv): ConfigFileShape {
     const value = env[envName];
     if (value === undefined)
       continue;
-    // 严格数字解析：拒绝 "1.5元"、"abc" 等，而非 parseFloat 静默截断；
+    // 严格数字解析：拒绝 "1.5usd"、"abc" 等，而非 parseFloat 静默截断；
     // 同时拒绝超长字符串（Number 会溢出为 Infinity）
     const trimmed = value.trim();
     const num = Number(trimmed);

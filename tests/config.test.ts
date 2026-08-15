@@ -117,7 +117,7 @@ describe("loadConfig 优先级", () => {
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "30_000" } })).rejects.toThrow(ConfigError);
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_MAX_OUTPUT_TOKENS: "4096.5" } })).rejects.toThrow(ConfigError);
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_CACHE_TTL_MS: "5m" } })).rejects.toThrow(ConfigError);
-    await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_INPUT: "1.5元" } })).rejects.toThrow(ConfigError);
+    await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_INPUT: "1.5usd" } })).rejects.toThrow(ConfigError);
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_PRICE_OUTPUT: "2x" } })).rejects.toThrow(ConfigError);
     // 超长数字字符串：正则能通过，但 Number() 会溢出为 Infinity，必须拒绝
     await expect(loadConfig({ ...dir, env: { DEEPSEEK_TIMEOUT_MS: "9".repeat(400) } })).rejects.toThrow(ConfigError);
@@ -135,8 +135,8 @@ describe("loadConfig 优先级", () => {
     const config = await loadConfig({ ...dir, env: {} });
     config.prices.inputPerMillion = 999;
     config.prices.models!["deepseek-v4-pro"].outputPerMillion = 999;
-    expect(DEFAULT_CONFIG.prices.inputPerMillion).toBe(1.5);
-    expect(DEFAULT_CONFIG.prices.models?.["deepseek-v4-pro"]?.outputPerMillion).toBe(13.5);
+    expect(DEFAULT_CONFIG.prices.inputPerMillion).toBe(0.22);
+    expect(DEFAULT_CONFIG.prices.models?.["deepseek-v4-pro"]?.outputPerMillion).toBe(1.98);
   });
 });
 
@@ -174,11 +174,11 @@ describe("prices 配置", () => {
     const dir = makeDirs();
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.prices).toEqual({
-      inputPerMillion: 1.5,
-      cachedInputPerMillion: 0.05,
-      outputPerMillion: 4.5,
+      inputPerMillion: 0.22,
+      cachedInputPerMillion: 0.007,
+      outputPerMillion: 0.66,
       peak: DEFAULT_PEAK,
-      models: { "deepseek-v4-pro": { inputPerMillion: 4.5, cachedInputPerMillion: 0.15, outputPerMillion: 13.5 } },
+      models: { "deepseek-v4-pro": { inputPerMillion: 0.66, cachedInputPerMillion: 0.022, outputPerMillion: 1.98 } },
     });
   });
 
@@ -187,8 +187,8 @@ describe("prices 配置", () => {
     writeProject(dir, { prices: { inputPerMillion: 5 } });
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.prices.inputPerMillion).toBe(5);
-    expect(config.prices.cachedInputPerMillion).toBe(0.05); // 默认保留
-    expect(config.prices.outputPerMillion).toBe(4.5);
+    expect(config.prices.cachedInputPerMillion).toBe(0.007); // 默认保留
+    expect(config.prices.outputPerMillion).toBe(0.66);
     expect(config.prices.peak).toEqual(DEFAULT_PEAK);
   });
 
@@ -238,9 +238,9 @@ describe("model 与 prices.models", () => {
     const config = await loadConfig({ ...dir, env: {} });
     expect(config.model).toBe("deepseek-v4-flash");
     expect(config.prices.models?.["deepseek-v4-pro"]).toEqual({
-      inputPerMillion: 4.5,
-      cachedInputPerMillion: 0.15,
-      outputPerMillion: 13.5,
+      inputPerMillion: 0.66,
+      cachedInputPerMillion: 0.022,
+      outputPerMillion: 1.98,
     });
   });
 

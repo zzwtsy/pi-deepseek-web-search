@@ -17,7 +17,7 @@ vi.mock("../src/config.js", async (importOriginal) => {
       timeoutMs: 30_000,
       cacheTtlMs: 300_000,
       maxResultChars: 50_000,
-      prices: { inputPerMillion: 1.5, cachedInputPerMillion: 0.05, outputPerMillion: 4.5 },
+      prices: { inputPerMillion: 0.22, cachedInputPerMillion: 0.007, outputPerMillion: 0.66 },
     }),
   };
 });

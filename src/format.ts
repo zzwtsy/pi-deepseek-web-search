@@ -94,7 +94,7 @@ export function buildToolDetails(
   };
 }
 
-/** 成本明细（元）：input/output/cacheRead 之和为 total */
+/** 成本明细（USD）：input/output/cacheRead 之和为 total */
 export interface CostBreakdown {
   input: number;
   output: number;
@@ -145,7 +145,7 @@ export function resolvePrices(prices: PriceConfig, model: string): PriceConfig {
 }
 
 /**
- * 按价格配置计算成本（元）。
+ * 按价格配置计算成本（USD）。
  * cachedTokens 是 inputTokens 的子集：未命中部分 = input - cached，命中部分按缓存单价。
  * 配置了 peak 且 now 处于高峰时段时，所有单价 × multiplier。
  */

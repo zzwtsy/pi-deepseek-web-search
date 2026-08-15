@@ -63,7 +63,7 @@ export interface ModelPriceConfig {
   peak?: PeakPriceConfig;
 }
 
-/** 价格配置：元/百万 tokens（官方空闲价：deepseek-v4-flash 为 1.5 / 0.05 / 4.5；deepseek-v4-pro 见 models 默认表） */
+/** 价格配置：USD / 1M tokens（官方空闲价：deepseek-v4-flash 为 0.22 / 0.007 / 0.66；deepseek-v4-pro 见 models 默认表） */
 export interface PriceConfig {
   /** 输入单价（缓存未命中） */
   inputPerMillion: number;

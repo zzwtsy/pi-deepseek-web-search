@@ -195,7 +195,7 @@ export default function (pi: ExtensionAPI): void {
         ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-4)}`
         : "not configured";
       const priceSummary = `${config.prices.inputPerMillion}/${config.prices.cachedInputPerMillion}/${config.prices.outputPerMillion}`
-        + ` CNY per 1M tokens (off-peak input miss/hit/output)${
+        + ` USD per 1M tokens (off-peak input miss/hit/output)${
           config.prices.peak != null ? ", peak pricing enabled" : ""}`;
       pi.sendMessage({
         customType: "deepseek-search",

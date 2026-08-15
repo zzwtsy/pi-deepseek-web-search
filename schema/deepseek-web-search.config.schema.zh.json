@@ -64,20 +64,20 @@
         "inputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1.5,
-          "description": "输入单价，缓存未命中（空闲价）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。"
+          "default": 0.22,
+          "description": "输入单价，缓存未命中，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。"
         },
         "cachedInputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 0.05,
-          "description": "输入单价，缓存命中（空闲价）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。"
+          "default": 0.007,
+          "description": "输入单价，缓存命中，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。"
         },
         "outputPerMillion": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 4.5,
-          "description": "输出单价（空闲价）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。"
+          "default": 0.66,
+          "description": "输出单价，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。"
         },
         "peak": {
           "type": "object",
@@ -194,7 +194,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "价格配置，单位：元/百万 tokens。默认值为官方空闲价，并默认启用官方峰谷时段。"
+      "description": "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段。"
     }
   },
   "additionalProperties": false,

@@ -71,25 +71,25 @@ export const modelPriceSchema = Type.Object({
   descriptionEn: "Per-model price override; missing fields fall back to top-level prices.",
 });
 
-/** 价格配置（元/百万 tokens，依据官方定价页） */
+/** 价格配置（USD / 1M tokens，依据官方英文定价页） */
 export const pricesSchema = Type.Object({
   inputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 1.5,
-    descriptionZh: "输入单价，缓存未命中（空闲价）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。",
-    descriptionEn: "Input price, cache miss (off-peak). Overridable via DEEPSEEK_PRICE_INPUT.",
+    default: 0.22,
+    descriptionZh: "输入单价，缓存未命中，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_INPUT 可覆盖。",
+    descriptionEn: "Input price, cache miss, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_INPUT.",
   })),
   cachedInputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 0.05,
-    descriptionZh: "输入单价，缓存命中（空闲价）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。",
-    descriptionEn: "Input price, cache hit (off-peak). Overridable via DEEPSEEK_PRICE_CACHED_INPUT.",
+    default: 0.007,
+    descriptionZh: "输入单价，缓存命中，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_CACHED_INPUT 可覆盖。",
+    descriptionEn: "Input price, cache hit, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_CACHED_INPUT.",
   })),
   outputPerMillion: Type.Optional(Type.Number({
     exclusiveMinimum: 0,
-    default: 4.5,
-    descriptionZh: "输出单价（空闲价）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。",
-    descriptionEn: "Output price (off-peak). Overridable via DEEPSEEK_PRICE_OUTPUT.",
+    default: 0.66,
+    descriptionZh: "输出单价，空闲价（USD / 1M tokens）。环境变量 DEEPSEEK_PRICE_OUTPUT 可覆盖。",
+    descriptionEn: "Output price, off-peak (USD / 1M tokens). Overridable via DEEPSEEK_PRICE_OUTPUT.",
   })),
   peak: Type.Optional(defaultPeakSchema),
   models: Type.Optional(Type.Record(Type.String(), modelPriceSchema, {
@@ -98,8 +98,8 @@ export const pricesSchema = Type.Object({
   })),
 }, {
   additionalProperties: false,
-  descriptionZh: "价格配置，单位：元/百万 tokens。默认值为官方空闲价，并默认启用官方峰谷时段。",
-  descriptionEn: "Pricing in CNY per million tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default.",
+  descriptionZh: "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段。",
+  descriptionEn: "Pricing in USD per 1M tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default.",
 });
 
 /** 配置文件结构（所有字段可选，按优先级合并）——单一事实来源 */

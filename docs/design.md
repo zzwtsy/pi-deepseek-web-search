@@ -60,7 +60,7 @@ index.ts ──→ config.ts ──→ config-schema.ts（单一来源，被 con
 | --- | ------ | ------ |
 | D1 | **强制搜索**：请求体固定 `tool_choice: { type: "web_search" }`，删除 `toolChoice` 配置项 | 插件职责即搜索，不让模型跳过；可配置 = 自废功能 |
 | D2 | **`SearchProvider` 端口**（`search(query, options)`，消费者拥有） | Rule of Three：端口成本 ~10 行，机制（注册表/判别联合配置）等第二个后端真实落地再建 |
-| D3 | **价格可配置 + 官方峰谷默认启用**：`prices` 空闲价基座 + 默认 `peak { multiplier: 2, hours }` | 官方峰谷已执行；空闲价 × 2 = 高峰价，三类计费项一致；默认跟随官方时段 |
+| D3 | **价格可配置 + 官方峰谷默认启用**：`prices` 以 USD / 1M tokens 为空闲价基座 + 默认 `peak { multiplier: 2, hours }` | pi 的 `Usage.cost` 以 USD 显示；空闲价 × 2 = 高峰价，三类计费项一致；默认跟随官方时段 |
 | D4 | **峰谷按北京时间判定**（`Intl` 固定 `Asia/Shanghai`，不暴露配置） | 计费按北京时间；暴露时区只会配错。半开区间 `[start, end)` 消除边界歧义 |
 | D5 | **模型可配置 + per-model 价格表**（`prices.models`）+ **缓存键含 cwd/baseUrl/model** | v4-flash 与 v4-pro 均支持 Responses API；`models` 整块覆盖（防幽灵配置）；缓存键隔离项目/代理/模型 |
 | D6 | **配置单一来源**（TypeBox → `Static` 类型 + `Check`/`Errors` 校验 + 双语言 schema 生成） | 消除"手写 interface + 手写校验 + 手写 schema"三份漂移；生成产物提交 + 测试断言同步 |
@@ -114,7 +114,7 @@ cost.output    = output / 1e6 × outputPerMillion × peakMultiplier
 peakMultiplier = 命中北京高峰时段（每日 9:00-12:00 / 14:00-18:00，半开）? peak.multiplier : 1
 ```
 
-- 默认价 = 官方空闲价（deepseek-v4-flash：1.5 / 0.05 / 4.5 元/百万 tokens）；`prices.models` 按当前 `model` 覆盖（`resolvePrices`，缺省回退顶层，pro 预置 4.5 / 0.15 / 13.5）
+- 默认价 = 官方空闲价（deepseek-v4-flash：$0.22 / $0.007 / $0.66 USD per 1M tokens）；`prices.models` 按当前 `model` 覆盖（`resolvePrices`，缺省回退顶层，pro 预置 $0.66 / $0.022 / $1.98）
 - 官方 peak 默认启用（multiplier=2，北京时间每日 9:00-12:00 / 14:00-18:00）；工具 TTL 缓存命中路径**不报 cost**（无真实 API 调用，如实显示零成本）
 - reasoning tokens 计入输出计费（官方按输出总 token 计费）
 
