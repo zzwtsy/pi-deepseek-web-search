@@ -38,7 +38,7 @@ pi install npm:pi-deepseek-web-search
 2. 项目配置文件：`.pi/deepseek-web-search.json`
 3. 全局配置文件：`~/.pi/agent/deepseek-web-search.json`
 
-> 配置会在扩展进程内按工作目录缓存；修改配置文件或环境变量后，请重启 pi（或运行 `/deepseek-search status` 强制刷新）再继续搜索。
+> 配置会在扩展进程内按工作目录缓存；修改配置文件或环境变量后，请重启 pi（或运行 `/deepseek-search status` 强制刷新）再继续搜索。如果这里未配置 API key，工具会回退使用 pi 中已经配置的 DeepSeek provider key。
 
 ### 示例（`~/.pi/agent/deepseek-web-search.json`）
 

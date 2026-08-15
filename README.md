@@ -38,7 +38,7 @@ Config is read from, in order of precedence (later sources override earlier ones
 2. Project config file: `.pi/deepseek-web-search.json`
 3. Global config file: `~/.pi/agent/deepseek-web-search.json`
 
-> Config is cached in the extension process per working directory. After changing config files or environment variables, restart pi (or run `/deepseek-search status` to force a reload) before searching again.
+> Config is cached in the extension process per working directory. After changing config files or environment variables, restart pi (or run `/deepseek-search status` to force a reload) before searching again. If no API key is configured here, the tool falls back to the DeepSeek provider API key already configured in pi.
 
 ### Example (`~/.pi/agent/deepseek-web-search.json`)
 

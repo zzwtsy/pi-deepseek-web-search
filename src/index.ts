@@ -43,7 +43,32 @@ function createProvider(config: SearchConfig): SearchProvider {
   });
 }
 
-/** SearchUsage → pi 的 Usage（成本按价格配置实时计算，默认官方平峰价） */
+/** 配置 key 来源（扩展配置 / pi provider / 缺失） */
+type ApiKeySource = "config" | "pi" | "missing";
+
+/**
+ * 扩展配置未提供 apiKey 时，回退读取 pi 已配置的 DeepSeek provider key。
+ * modelRegistry.getApiKeyForProvider 自身会吞掉错误并返回 undefined；这里再兜底一次以 fail-open。
+ */
+async function resolveConfigApiKey(
+  config: SearchConfig,
+  getPiApiKey: (provider: string) => Promise<string | undefined>,
+): Promise<{ config: SearchConfig; apiKeySource: ApiKeySource }> {
+  if (config.apiKey.trim() !== "") {
+    return { config, apiKeySource: "config" };
+  }
+  try {
+    const piApiKey = (await getPiApiKey("deepseek"))?.trim();
+    if (piApiKey != null && piApiKey !== "") {
+      return { config: { ...config, apiKey: piApiKey }, apiKeySource: "pi" };
+    }
+  } catch {
+    // pi 的 key 解析失败时继续走正常校验，由 validateConfig 给出可读错误
+  }
+  return { config, apiKeySource: "missing" };
+}
+
+/** SearchUsage → pi 的 Usage（成本按价格配置实时计算，默认官方空闲价） */
 function toPiUsage(usage: SearchUsage, prices: PriceConfig) {
   // DeepSeek 的 input_tokens 已包含 cached_tokens，而 pi 的 Usage 把 input/cacheRead 视为互斥并求和；
   // 未命中部分 = inputTokens - cachedTokens（与 computeCost 的 uncachedInput 一致），避免重复计数
@@ -81,9 +106,12 @@ export default function (pi: ExtensionAPI): void {
       }
       const mode = params.mode ?? "answer";
 
-      // 配置经单例进程内缓存读取（同一 cwd 下只读一次文件）
+      // 配置经单例进程内缓存读取（同一 cwd 下只读一次文件）；缺失 apiKey 时回退 pi 的 DeepSeek provider key
       const configProvider = getConfigProvider(ctx.cwd);
-      const config = await configProvider.get();
+      const { config } = await resolveConfigApiKey(
+        await configProvider.get(),
+        async provider => ctx.modelRegistry.getApiKeyForProvider(provider),
+      );
       const configError = validateConfig(config);
       if (configError != null) {
         throw new Error(configError);
@@ -190,9 +218,12 @@ export default function (pi: ExtensionAPI): void {
 
       // status 复用单例但强制 reload，反映用户最新改动（reload 是单例上唯一的刷新入口）
       const configProvider = getConfigProvider(ctx.cwd);
-      const config = await configProvider.reload();
+      const { config, apiKeySource } = await resolveConfigApiKey(
+        await configProvider.reload(),
+        async provider => ctx.modelRegistry.getApiKeyForProvider(provider),
+      );
       const keyMasked = config.apiKey
-        ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-4)}`
+        ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-4)}${apiKeySource === "pi" ? " (pi provider)" : ""}`
         : "not configured";
       const priceSummary = `${config.prices.inputPerMillion}/${config.prices.cachedInputPerMillion}/${config.prices.outputPerMillion}`
         + ` USD per 1M tokens (off-peak input miss/hit/output)${
