@@ -9,7 +9,7 @@ import { Type } from "typebox";
 /** HH:MM 24 小时制（00:00-23:59） */
 const TIME_PATTERN = "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$";
 
-/** 峰谷定价覆盖（可选）。官方定义：高峰 = 平峰 × multiplier，时段为北京时间每日 */
+/** 峰谷定价覆盖（可选）。官方定义：高峰 = 平峰 × multiplier，时段按北京时间判断 */
 export const peakSchema = Type.Object({
   multiplier: Type.Number({
     exclusiveMinimum: 0,
@@ -27,24 +27,30 @@ export const peakSchema = Type.Object({
       descriptionEn: "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not.",
     },
   ),
+  weekendOffPeak: Type.Optional(Type.Boolean({
+    default: true,
+    descriptionZh: "官方生效后周六、周日全天按平峰计价；自定义价格表可设为 false 保留周末高峰。",
+    descriptionEn: "After the official effective time, Saturday and Sunday are off-peak all day; set false to retain weekend peak pricing for a custom schedule.",
+  })),
 }, {
   additionalProperties: false,
-  descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。",
-  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily.",
+  descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方工作日高峰时段为北京时间 9:00-12:00 与 14:00-18:00；2026-08-23 00:00 起周末全天为平峰。",
+  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official weekday peak hours are 09:00-12:00 and 14:00-18:00 Beijing time; weekends are off-peak all day from 2026-08-23 00:00 Beijing time.",
 });
 
-/** 官方默认峰谷配置（北京时间每日 9:00-12:00 / 14:00-18:00，高峰价 = 空闲价 × 2） */
+/** 官方默认峰谷配置（北京时间工作日 9:00-12:00 / 14:00-18:00，高峰价 = 空闲价 × 2） */
 export const DEFAULT_PEAK: PeakPriceConfig = {
   multiplier: 2,
   hours: [["09:00", "12:00"], ["14:00", "18:00"]],
+  weekendOffPeak: true,
 };
 
 /** 带默认值的顶层 peak schema；per-model peak 继续使用无默认值的 peakSchema */
 const defaultPeakSchema = Type.Object(peakSchema.properties, {
   additionalProperties: false,
   default: DEFAULT_PEAK,
-  descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。",
-  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily.",
+  descriptionZh: "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方工作日高峰时段为北京时间 9:00-12:00 与 14:00-18:00；2026-08-23 00:00 起周末全天为平峰。",
+  descriptionEn: "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official weekday peak hours are 09:00-12:00 and 14:00-18:00 Beijing time; weekends are off-peak all day from 2026-08-23 00:00 Beijing time.",
 });
 
 /** 单模型价格覆盖（部分覆盖：缺省项回退顶层价格；无 models 键 + additionalProperties:false 天然禁止嵌套） */
@@ -98,8 +104,8 @@ export const pricesSchema = Type.Object({
   })),
 }, {
   additionalProperties: false,
-  descriptionZh: "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段。",
-  descriptionEn: "Pricing in USD per 1M tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default.",
+  descriptionZh: "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段及周末平峰规则。",
+  descriptionEn: "Pricing in USD per 1M tokens; defaults are the official off-peak prices, with the official peak schedule and weekend off-peak rule enabled by default.",
 });
 
 /** 配置文件结构（所有字段可选，按优先级合并）——单一事实来源 */
@@ -160,8 +166,8 @@ export const configFileSchema = Type.Object({
   prices: Type.Optional(pricesSchema),
 }, {
   additionalProperties: false,
-  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；默认启用官方峰谷定价（北京时间每日 9:00-12:00 / 14:00-18:00）。",
-  descriptionEn: "Config file for the deepseek-web-search extension; validation rules match the runtime. Official peak pricing is enabled by default (daily 09:00-12:00 / 14:00-18:00 Beijing time).",
+  descriptionZh: "deepseek-web-search 扩展配置文件（.pi/deepseek-web-search.json）。校验规则与运行时一致；默认启用官方峰谷定价（北京时间工作日 9:00-12:00 / 14:00-18:00，2026-08-23 00:00 起周末全天平峰）。",
+  descriptionEn: "Config file for the deepseek-web-search extension; validation rules match the runtime. Official peak pricing is enabled by default (weekday 09:00-12:00 / 14:00-18:00 Beijing time, with weekends off-peak all day from 2026-08-23 00:00).",
 });
 
 /** 配置文件结构类型（由 configFileSchema 派生，单一来源） */

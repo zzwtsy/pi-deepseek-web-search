@@ -43,12 +43,14 @@ export interface SearchResult {
   id?: string;
 }
 
-/** 峰谷定价覆盖（可选）。官方定义：高峰 = 平时 × multiplier，时段为北京时间每日 */
+/** 峰谷定价覆盖（可选）。官方定义：高峰 = 平时 × multiplier，时段按北京时间判断 */
 export interface PeakPriceConfig {
   /** 高峰单价 = 平峰单价 × multiplier */
   multiplier: number;
-  /** 高峰时段列表（北京时间每日），半开区间 [start, end)，如 [["09:00", "12:00"], ["14:00", "18:00"]] */
+  /** 高峰时段列表（北京时间），半开区间 [start, end)，如 [["09:00", "12:00"], ["14:00", "18:00"]] */
   hours: Array<[string, string]>;
+  /** 官方规则生效后周末全天按平峰计价；自定义价格表可显式关闭 */
+  weekendOffPeak?: boolean;
 }
 
 /** 按模型覆盖的价格（models 表的值；字段可选 = 部分覆盖，缺省项回退顶层价格；禁止再嵌套 models） */

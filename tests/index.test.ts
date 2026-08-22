@@ -36,7 +36,12 @@ const DEFAULT_TEST_CONFIG: SearchConfig = {
   timeoutMs: 30_000,
   cacheTtlMs: 300_000,
   maxResultChars: 50_000,
-  prices: { inputPerMillion: 0.22, cachedInputPerMillion: 0.007, outputPerMillion: 0.66 },
+  prices: {
+    inputPerMillion: 0.22,
+    cachedInputPerMillion: 0.007,
+    outputPerMillion: 0.66,
+    peak: { multiplier: 2, hours: [["09:00", "12:00"], ["14:00", "18:00"]] },
+  },
 };
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -60,10 +65,16 @@ interface ToolDef {
   ) => Promise<Record<string, unknown>>;
 }
 
+interface CommandDef {
+  handler: (args: string, ctx: { cwd: string; modelRegistry: { getApiKeyForProvider: (provider: string) => Promise<string | undefined> } }) => Promise<void>;
+}
+
 let tool: ToolDef;
+let command: CommandDef;
 let mockConfig: SearchConfig;
 let fetchFn: ReturnType<typeof vi.fn<(input: unknown, init?: RequestInit) => Promise<Response>>>;
 let getPiApiKey: ReturnType<typeof vi.fn<(provider: string) => Promise<string | undefined>>>;
+let sendMessage: ReturnType<typeof vi.fn>;
 
 function makeCtx(cwd: string): {
   cwd: string;
@@ -74,9 +85,13 @@ function makeCtx(cwd: string): {
 
 beforeEach(() => {
   const tools: ToolDef[] = [];
+  sendMessage = vi.fn();
   const pi = {
     registerTool: (def: ToolDef) => tools.push(def),
-    registerCommand: () => {},
+    registerCommand: (_name: string, def: CommandDef) => {
+      command = def;
+    },
+    sendMessage,
   } as unknown as Parameters<typeof registerExtension>[0];
   registerExtension(pi);
   tool = tools[0];
@@ -93,6 +108,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("deepseek_web_search execute", () => {
@@ -106,6 +122,27 @@ describe("deepseek_web_search execute", () => {
       reasoning: 198,
       totalTokens: 7191,
     });
+  });
+
+  it("成本按请求发起时间计费，而不是响应完成时间", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 24, 3, 59, 59))); // 北京时间周一 11:59:59
+    let resolveFetchStarted: () => void = () => {};
+    const fetchStarted = new Promise<void>((resolve) => {
+      resolveFetchStarted = resolve;
+    });
+    fetchFn.mockImplementation(async () => {
+      resolveFetchStarted();
+      await new Promise<void>(resolve => setTimeout(resolve, 1_000)); // 跨过 12:00 平峰边界
+      return jsonResponse(200, successBody());
+    });
+
+    const resultPromise = tool.execute("id", { query: "跨越峰值边界" }, undefined, undefined, makeCtx("/tmp/ds-billing-time"));
+    await fetchStarted;
+    await vi.advanceTimersByTimeAsync(1_000);
+    const result = await resultPromise;
+    const usage = result.usage as { cost: { total: number } };
+    expect(usage.cost.total).toBeCloseTo(0.00236052, 8);
   });
 
   it("未配置 apiKey 时回退使用 pi 已配置的 DeepSeek key", async () => {
@@ -151,5 +188,23 @@ describe("deepseek_web_search execute", () => {
 
   it("schema 不再暴露 maxResults 死参数", () => {
     expect(tool.parameters?.properties?.maxResults).toBeUndefined();
+  });
+
+  it("status 展示当前模型解析后的价格", async () => {
+    mockConfig = {
+      ...mockConfig,
+      model: "deepseek-v4-pro",
+      prices: {
+        inputPerMillion: 0.22,
+        cachedInputPerMillion: 0.007,
+        outputPerMillion: 0.66,
+        models: {
+          "deepseek-v4-pro": { inputPerMillion: 0.66, cachedInputPerMillion: 0.022, outputPerMillion: 1.98 },
+        },
+      },
+    };
+    await command.handler("status", makeCtx("/tmp/ds-status-price"));
+    const message = sendMessage.mock.calls[0]?.[0] as { content: string } | undefined;
+    expect(message?.content).toContain("Prices: 0.66/0.022/1.98");
   });
 });

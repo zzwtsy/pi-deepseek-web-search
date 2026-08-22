@@ -103,21 +103,36 @@ export interface CostBreakdown {
   total: number;
 }
 
+/** 官方周末平峰规则的生效时间（2026-08-23 00:00，Asia/Shanghai）。 */
+const WEEKEND_OFF_PEAK_EFFECTIVE_AT = Date.parse("2026-08-23T00:00:00+08:00");
+
+const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Shanghai",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 /**
- * 判断 now 是否处于高峰时段（北京时间每日；与机器时区无关，官方按北京时间计费）。
+ * 判断 now 是否处于高峰时段（北京时间；与机器时区无关，官方按北京时间计费）。
  * 半开区间 [start, end)：09:00 计高峰、12:00 不计，两个时段无缝衔接。
+ * weekendOffPeak 未显式设为 false 时，官方生效时间后周末全天按平峰处理。
  */
-export function isPeakTime(now: Date, hours: Array<[string, string]>): boolean {
-  // Intl 输出如 "09:30"（en-US hour12:false 可能有前导空格或 "24:00" 表示午夜），归一化为 HH:MM
-  let hhmm = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Shanghai",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(now);
+export function isPeakTime(now: Date, hours: Array<[string, string]>, weekendOffPeak = true): boolean {
+  const parts = BEIJING_TIME_FORMATTER.formatToParts(now);
+  const weekday = parts.find(part => part.type === "weekday")?.value;
+  const hour = parts.find(part => part.type === "hour")?.value ?? "00";
+  const minute = parts.find(part => part.type === "minute")?.value ?? "00";
+  const isWeekend = weekday === "Sat" || weekday === "Sun";
+  if (weekendOffPeak && isWeekend && now.getTime() >= WEEKEND_OFF_PEAK_EFFECTIVE_AT)
+    return false;
+
+  // Intl 输出的午夜可能是 "24:00"，归一化为 "00:00" 后再比较字符串时分。
+  let hhmm = `${hour}:${minute}`;
+  if (hhmm.startsWith("24:"))
+    hhmm = `00:${minute}`;
   hhmm = hhmm.replace(/\s+/g, "").padStart(5, "0");
-  if (hhmm === "24:00")
-    hhmm = "00:00";
   return hours.some(([start, end]) => hhmm >= start && hhmm < end);
 }
 
@@ -151,7 +166,7 @@ export function resolvePrices(prices: PriceConfig, model: string): PriceConfig {
  */
 export function computeCost(usage: SearchUsage, prices: PriceConfig, now: Date = new Date()): CostBreakdown {
   const peakMultiplier
-    = prices.peak != null && isPeakTime(now, prices.peak.hours) ? prices.peak.multiplier : 1;
+    = prices.peak != null && isPeakTime(now, prices.peak.hours, prices.peak.weekendOffPeak !== false) ? prices.peak.multiplier : 1;
   const uncachedInput = Math.max(usage.inputTokens - usage.cachedTokens, 0);
   const input = (uncachedInput / 1_000_000) * prices.inputPerMillion * peakMultiplier;
   const cacheRead = (usage.cachedTokens / 1_000_000) * prices.cachedInputPerMillion * peakMultiplier;

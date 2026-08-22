@@ -69,7 +69,7 @@ async function resolveConfigApiKey(
 }
 
 /** SearchUsage → pi 的 Usage（成本按价格配置实时计算，默认官方空闲价） */
-function toPiUsage(usage: SearchUsage, prices: PriceConfig) {
+function toPiUsage(usage: SearchUsage, prices: PriceConfig, billedAt: Date) {
   // DeepSeek 的 input_tokens 已包含 cached_tokens，而 pi 的 Usage 把 input/cacheRead 视为互斥并求和；
   // 未命中部分 = inputTokens - cachedTokens（与 computeCost 的 uncachedInput 一致），避免重复计数
   return {
@@ -79,7 +79,7 @@ function toPiUsage(usage: SearchUsage, prices: PriceConfig) {
     cacheWrite: 0,
     reasoning: usage.reasoningTokens,
     totalTokens: usage.totalTokens,
-    cost: computeCost(usage, prices),
+    cost: computeCost(usage, prices, billedAt),
   };
 }
 
@@ -148,6 +148,8 @@ export default function (pi: ExtensionAPI): void {
       });
 
       try {
+        // 峰谷价格按请求发生时估算，避免响应跨越时段边界后按完成时间计费。
+        const billedAt = new Date();
         const result = await provider.search(query, {
           reasoningEffort: config.reasoningEffort,
           maxOutputTokens: config.maxOutputTokens,
@@ -171,7 +173,7 @@ export default function (pi: ExtensionAPI): void {
             },
           ],
           details: buildToolDetails(result, { query, mode, cached: false, durationMs }, config.maxResultChars),
-          usage: result.usage ? toPiUsage(result.usage, resolvePrices(config.prices, config.model)) : undefined,
+          usage: result.usage ? toPiUsage(result.usage, resolvePrices(config.prices, config.model), billedAt) : undefined,
         };
       } catch (error) {
         if (error instanceof SearchError && error.code === "aborted") {
@@ -225,9 +227,10 @@ export default function (pi: ExtensionAPI): void {
       const keyMasked = config.apiKey
         ? `${config.apiKey.slice(0, 3)}...${config.apiKey.slice(-4)}${apiKeySource === "pi" ? " (pi provider)" : ""}`
         : "not configured";
-      const priceSummary = `${config.prices.inputPerMillion}/${config.prices.cachedInputPerMillion}/${config.prices.outputPerMillion}`
+      const resolvedPrices = resolvePrices(config.prices, config.model);
+      const priceSummary = `${resolvedPrices.inputPerMillion}/${resolvedPrices.cachedInputPerMillion}/${resolvedPrices.outputPerMillion}`
         + ` USD per 1M tokens (off-peak input miss/hit/output)${
-          config.prices.peak != null ? ", peak pricing enabled" : ""}`;
+          resolvedPrices.peak != null ? ", peak pricing enabled" : ""}`;
       pi.sendMessage({
         customType: "deepseek-search",
         content: [

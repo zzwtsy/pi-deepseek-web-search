@@ -110,6 +110,11 @@
               },
               "minItems": 1,
               "description": "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not."
+            },
+            "weekendOffPeak": {
+              "type": "boolean",
+              "default": true,
+              "description": "After the official effective time, Saturday and Sunday are off-peak all day; set false to retain weekend peak pricing for a custom schedule."
             }
           },
           "additionalProperties": false,
@@ -124,9 +129,10 @@
                 "14:00",
                 "18:00"
               ]
-            ]
+            ],
+            "weekendOffPeak": true
           },
-          "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily."
+          "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official weekday peak hours are 09:00-12:00 and 14:00-18:00 Beijing time; weekends are off-peak all day from 2026-08-23 00:00 Beijing time."
         },
         "models": {
           "type": "object",
@@ -180,10 +186,15 @@
                       },
                       "minItems": 1,
                       "description": "Peak hour ranges, half-open [start, end); 09:00 counts as peak, 12:00 does not."
+                    },
+                    "weekendOffPeak": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "After the official effective time, Saturday and Sunday are off-peak all day; set false to retain weekend peak pricing for a custom schedule."
                     }
                   },
                   "additionalProperties": false,
-                  "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official peak hours are 09:00-12:00 and 14:00-18:00 Beijing time daily."
+                  "description": "Peak-hour pricing: peak price = off-peak price × multiplier, applied to all billing items. Official weekday peak hours are 09:00-12:00 and 14:00-18:00 Beijing time; weekends are off-peak all day from 2026-08-23 00:00 Beijing time."
                 }
               },
               "additionalProperties": false,
@@ -194,7 +205,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Pricing in USD per 1M tokens; defaults are the official off-peak prices, and the official peak schedule is enabled by default."
+      "description": "Pricing in USD per 1M tokens; defaults are the official off-peak prices, with the official peak schedule and weekend off-peak rule enabled by default."
     }
   },
   "additionalProperties": false,

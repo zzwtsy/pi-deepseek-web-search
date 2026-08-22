@@ -121,7 +121,7 @@ const DEFAULT_PRICES: PriceConfig = {
   outputPerMillion: 0.66,
 };
 
-/** 官方高峰时段（北京时间每日） */
+/** 官方高峰时段（北京时间工作日） */
 const PEAK_HOURS: Array<[string, string]> = [["09:00", "12:00"], ["14:00", "18:00"]];
 
 /** 构造北京时间指定时刻的 Date（UTC+8） */
@@ -142,10 +142,21 @@ describe("isPeakTime", () => {
     expect(isPeakTime(beijingTime(3, 18), PEAK_HOURS)).toBe(false);
   });
 
-  it("高峰时段为每日（周末同样生效）", () => {
-    // 2026-08-08 周六
+  it("周末规则生效前仍按每日高峰时段", () => {
+    // 2026-08-08 周六，官方周末规则尚未生效
     expect(isPeakTime(beijingTime(8, 9, 30), PEAK_HOURS)).toBe(true);
     expect(isPeakTime(beijingTime(8, 20), PEAK_HOURS)).toBe(false);
+  });
+
+  it("周末规则生效后周六、周日全天为平峰", () => {
+    // 2026-08-23 周日，官方规则从当天 00:00 北京时间生效
+    expect(isPeakTime(beijingTime(23, 9, 30), PEAK_HOURS)).toBe(false);
+    expect(isPeakTime(beijingTime(23, 14), PEAK_HOURS)).toBe(false);
+    expect(isPeakTime(beijingTime(29, 10), PEAK_HOURS)).toBe(false);
+  });
+
+  it("自定义价格表可保留周末高峰", () => {
+    expect(isPeakTime(beijingTime(23, 10), PEAK_HOURS, false)).toBe(true);
   });
 
   it("深夜/清晨不在高峰（含 24:00 归一化）", () => {
@@ -185,6 +196,14 @@ describe("computeCost", () => {
     const prices: PriceConfig = { ...DEFAULT_PRICES, peak: { multiplier: 2, hours: PEAK_HOURS } };
     const cost = computeCost(makeUsage(), prices, beijingTime(3, 12));
     expect(cost.total).toBeCloseTo(0.5074);
+  });
+
+  it("周末规则生效后高峰时段按平峰价", () => {
+    const prices: PriceConfig = { ...DEFAULT_PRICES, peak: { multiplier: 2, hours: PEAK_HOURS } };
+    const weekend = computeCost(makeUsage(), prices, beijingTime(23, 10));
+    const weekdayPeak = computeCost(makeUsage(), prices, beijingTime(24, 10));
+    expect(weekend.total).toBeCloseTo(0.5074);
+    expect(weekdayPeak.total).toBeCloseTo(weekend.total * 2);
   });
 
   it("零 token：成本全 0", () => {

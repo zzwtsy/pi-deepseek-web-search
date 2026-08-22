@@ -167,7 +167,16 @@ describe("prices 配置", () => {
     expect(() => bad({ peak: { multiplier: 2, hours: [["25:00", "26:00"]] } })).toThrow(ConfigError);
     expect(() => bad({ peak: { multiplier: 2, hours: [["12:00", "09:00"]] } })).toThrow(ConfigError);
     expect(() => bad({ peak: { multiplier: 0, hours: [["09:00", "12:00"]] } })).toThrow(ConfigError);
+    expect(() => bad({ peak: { multiplier: 2, hours: [["09:00", "12:00"]], weekendOffPeak: "true" } })).toThrow(ConfigError);
     expect(() => bad({ peak: { multiplier: 2, hours: "09:00" } })).toThrow(ConfigError);
+  });
+
+  it("parseConfigFile：weekendOffPeak 可显式关闭", () => {
+    const shape = parseConfigFile(
+      JSON.stringify({ prices: { peak: { multiplier: 2, hours: [["09:00", "12:00"]], weekendOffPeak: false } } }),
+      "test.json",
+    );
+    expect(shape.prices?.peak).toEqual({ multiplier: 2, hours: [["09:00", "12:00"]], weekendOffPeak: false });
   });
 
   it("loadConfig：默认价格为官方空闲价并启用峰谷（含 v4-pro 覆盖表）", async () => {

@@ -110,6 +110,11 @@
               },
               "minItems": 1,
               "description": "高峰时段列表，半开区间 [start, end)（09:00 计高峰、12:00 不计）。"
+            },
+            "weekendOffPeak": {
+              "type": "boolean",
+              "default": true,
+              "description": "官方生效后周六、周日全天按平峰计价；自定义价格表可设为 false 保留周末高峰。"
             }
           },
           "additionalProperties": false,
@@ -124,9 +129,10 @@
                 "14:00",
                 "18:00"
               ]
-            ]
+            ],
+            "weekendOffPeak": true
           },
-          "description": "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。"
+          "description": "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方工作日高峰时段为北京时间 9:00-12:00 与 14:00-18:00；2026-08-23 00:00 起周末全天为平峰。"
         },
         "models": {
           "type": "object",
@@ -180,10 +186,15 @@
                       },
                       "minItems": 1,
                       "description": "高峰时段列表，半开区间 [start, end)（09:00 计高峰、12:00 不计）。"
+                    },
+                    "weekendOffPeak": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "官方生效后周六、周日全天按平峰计价；自定义价格表可设为 false 保留周末高峰。"
                     }
                   },
                   "additionalProperties": false,
-                  "description": "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方定义高峰时段为北京时间每日 9:00-12:00 与 14:00-18:00。"
+                  "description": "峰谷定价：高峰时段价格 = 平峰 × multiplier（适用所有计费项）。官方工作日高峰时段为北京时间 9:00-12:00 与 14:00-18:00；2026-08-23 00:00 起周末全天为平峰。"
                 }
               },
               "additionalProperties": false,
@@ -194,7 +205,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段。"
+      "description": "价格配置，单位：USD / 1M tokens。默认值为官方空闲价，并默认启用官方峰谷时段及周末平峰规则。"
     }
   },
   "additionalProperties": false,
