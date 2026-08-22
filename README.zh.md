@@ -73,7 +73,7 @@ pi install npm:pi-deepseek-web-search
 | `prices.inputPerMillion` | number > 0 | `0.22` | 输入单价，缓存未命中，空闲价（美元/百万 tokens） |
 | `prices.cachedInputPerMillion` | number > 0 | `0.007` | 输入单价，缓存命中，空闲价（美元/百万 tokens） |
 | `prices.outputPerMillion` | number > 0 | `0.66` | 输出单价，空闲价（美元/百万 tokens） |
-| `prices.peak` | object | 官方高峰时段 | 峰谷定价覆盖（默认启用官方时段，见下） |
+| `prices.peak` | object | 官方高峰时段 | 峰谷定价覆盖（默认遵循官方工作日/周末规则，见下） |
 | `prices.models` | object | — | 按模型覆盖的价格表（key = 模型名） |
 
 对应环境变量：`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`DEEPSEEK_REASONING_EFFORT`、`DEEPSEEK_MAX_OUTPUT_TOKENS`、`DEEPSEEK_TIMEOUT_MS`、`DEEPSEEK_CACHE_TTL_MS`、`DEEPSEEK_MAX_RESULT_CHARS`、`DEEPSEEK_PRICE_INPUT`、`DEEPSEEK_PRICE_CACHED_INPUT`、`DEEPSEEK_PRICE_OUTPUT`。
@@ -91,19 +91,21 @@ pi install npm:pi-deepseek-web-search
 | `deepseek-v4-pro` | 空闲 | $0.66 | $0.022 | $1.98 |
 | `deepseek-v4-pro` | 高峰 | $1.32 | $0.044 | $3.96 |
 
-单位均为美元/百万 tokens。高峰时段为**北京时间每日** 9:00–12:00 与 14:00–18:00，高峰价格 = 空闲价 × 2。官方峰谷时段默认启用；只有需要覆盖时才配置 `prices.peak`：
+单位均为美元/百万 tokens。工作日高峰时段为**北京时间** 9:00–12:00 与 14:00–18:00，高峰价格 = 空闲价 × 2。北京时间 2026-08-23 00:00 起，周六、周日全天按平峰计价。官方峰谷规则默认启用；只有需要覆盖时才配置 `prices.peak`：
 
 ```jsonc
 "prices": {
   "peak": {
     "multiplier": 2,
-    "hours": [["09:00", "12:00"], ["14:00", "18:00"]]   // 半开区间 [start, end)
+    "hours": [["09:00", "12:00"], ["14:00", "18:00"]],   // 半开区间 [start, end)
+    "weekendOffPeak": true
   }
 }
 ```
 
 - pro 的上述价格已预置在 `prices.models."deepseek-v4-pro"`，`model` 切换后自动生效
-- 工具上报的 `Usage.cost` 为按配置单价估算的金额；缓存命中不产生成本（无真实调用），`details.usage` 仍保留首次搜索的原始用量记录供查看
+- `weekendOffPeak` 默认为 `true`；自定义价格表需要保留周末高峰时才设置为 `false`
+- 工具上报的 `Usage.cost` 为按配置单价和请求发起时间估算的金额；缓存命中不产生成本（无真实调用），`details.usage` 仍保留首次搜索的原始用量记录供查看
 
 ### 模型支持
 

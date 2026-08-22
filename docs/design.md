@@ -60,8 +60,8 @@ index.ts ──→ config.ts ──→ config-schema.ts（单一来源，被 con
 | --- | ------ | ------ |
 | D1 | **强制搜索**：请求体固定 `tool_choice: { type: "web_search" }`，删除 `toolChoice` 配置项 | 插件职责即搜索，不让模型跳过；可配置 = 自废功能 |
 | D2 | **`SearchProvider` 端口**（`search(query, options)`，消费者拥有） | Rule of Three：端口成本 ~10 行，机制（注册表/判别联合配置）等第二个后端真实落地再建 |
-| D3 | **价格可配置 + 官方峰谷默认启用**：`prices` 以 USD / 1M tokens 为空闲价基座 + 默认 `peak { multiplier: 2, hours }` | pi 的 `Usage.cost` 以 USD 显示；空闲价 × 2 = 高峰价，三类计费项一致；默认跟随官方时段 |
-| D4 | **峰谷按北京时间判定**（`Intl` 固定 `Asia/Shanghai`，不暴露配置） | 计费按北京时间；暴露时区只会配错。半开区间 `[start, end)` 消除边界歧义 |
+| D3 | **价格可配置 + 官方峰谷默认启用**：`prices` 以 USD / 1M tokens 为空闲价基座 + 默认 `peak { multiplier: 2, hours, weekendOffPeak }` | pi 的 `Usage.cost` 以 USD 显示；空闲价 × 2 = 高峰价，三类计费项一致；默认跟随官方工作日/周末规则 |
+| D4 | **峰谷按北京时间判定**（`Intl` 固定 `Asia/Shanghai`，不暴露时区配置） | 计费按北京时间；暴露时区只会配错。半开区间 `[start, end)` 消除边界歧义，官方生效时间前后规则可复现 |
 | D5 | **模型可配置 + per-model 价格表**（`prices.models`）+ **缓存键含 cwd/baseUrl/model** | v4-flash 与 v4-pro 均支持 Responses API；`models` 整块覆盖（防幽灵配置）；缓存键隔离项目/代理/模型 |
 | D6 | **配置单一来源**（TypeBox → `Static` 类型 + `Check`/`Errors` 校验 + 双语言 schema 生成） | 消除"手写 interface + 手写校验 + 手写 schema"三份漂移；生成产物提交 + 测试断言同步 |
 | D7 | **错误模型**：`SearchError` 判别联合（`code`），接口层只认领域错误 | 厂商错误类（`DeepSeekError`）不泄漏到接口层；`aborted` 特殊处理（返回取消说明，不标 isError） |
@@ -111,11 +111,11 @@ src/config-schema.ts（TypeBox 定义：约束 + descriptionZh/descriptionEn）
 cost.input     = max(input - cached, 0) / 1e6 × inputPerMillion × peakMultiplier
 cost.cacheRead = cached / 1e6 × cachedInputPerMillion × peakMultiplier
 cost.output    = output / 1e6 × outputPerMillion × peakMultiplier
-peakMultiplier = 命中北京高峰时段（每日 9:00-12:00 / 14:00-18:00，半开）? peak.multiplier : 1
+peakMultiplier = 命中北京工作日高峰时段（9:00-12:00 / 14:00-18:00，半开）且不属于官方生效后的周末 ? peak.multiplier : 1
 ```
 
 - 默认价 = 官方空闲价（deepseek-v4-flash：$0.22 / $0.007 / $0.66 USD per 1M tokens）；`prices.models` 按当前 `model` 覆盖（`resolvePrices`，缺省回退顶层，pro 预置 $0.66 / $0.022 / $1.98）
-- 官方 peak 默认启用（multiplier=2，北京时间每日 9:00-12:00 / 14:00-18:00）；工具 TTL 缓存命中路径**不报 cost**（无真实 API 调用，如实显示零成本）
+- 官方 peak 默认启用（multiplier=2，北京时间工作日 9:00-12:00 / 14:00-18:00；2026-08-23 00:00 起周末全天平峰）；成本按请求发起时间估算，工具 TTL 缓存命中路径**不报 cost**（无真实 API 调用，如实显示零成本）
 - reasoning tokens 计入输出计费（官方按输出总 token 计费）
 
 ## 7. 非 TUI 兼容性
@@ -137,7 +137,7 @@ peakMultiplier = 命中北京高峰时段（每日 9:00-12:00 / 14:00-18:00，�
 | 动态 `import()` 插件加载 / plugin lifecycle | pi 的 `/reload` + 模块单例就是生命周期 |
 | DI 容器 | 手工组合 3 行；`erasableSyntaxOnly` 下判别联合是唯一正道 |
 | 多轮追问（open_page 续搜）/ Anthropic 格式路线 / overlay 浏览 | 官方不暴露结构化搜索结果，价值低；Anthropic 路线是潜在替代后端，见 §4 |
-| 峰谷双价自动切换之外的高级计费（节假日/分模型倍率） | 官方规则就是"统一翻倍"，够用 |
+| 峰谷双价自动切换之外的高级计费（节假日/分模型倍率） | 官方规则就是"统一翻倍"，够用；周末平峰是官方峰谷规则的一部分 |
 
 ## 9. 测试策略
 

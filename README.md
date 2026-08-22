@@ -73,7 +73,7 @@ Config is read from, in order of precedence (later sources override earlier ones
 | `prices.inputPerMillion` | number > 0 | `0.22` | Input price, cache miss, off-peak (USD / 1M tokens) |
 | `prices.cachedInputPerMillion` | number > 0 | `0.007` | Input price, cache hit, off-peak (USD / 1M tokens) |
 | `prices.outputPerMillion` | number > 0 | `0.66` | Output price, off-peak (USD / 1M tokens) |
-| `prices.peak` | object | official peak | Peak-hour pricing override (default follows the official schedule, see below) |
+| `prices.peak` | object | official peak | Peak-hour pricing override (default follows the official weekday/weekend schedule, see below) |
 | `prices.models` | object | — | Per-model price overrides keyed by model name |
 
 Environment variable equivalents: `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_REASONING_EFFORT`, `DEEPSEEK_MAX_OUTPUT_TOKENS`, `DEEPSEEK_TIMEOUT_MS`, `DEEPSEEK_CACHE_TTL_MS`, `DEEPSEEK_MAX_RESULT_CHARS`, `DEEPSEEK_PRICE_INPUT`, `DEEPSEEK_PRICE_CACHED_INPUT`, `DEEPSEEK_PRICE_OUTPUT`.
@@ -91,19 +91,21 @@ From 2026-08-17 00:00 Beijing time, DeepSeek uses peak/off-peak pricing. Default
 | `deepseek-v4-pro` | off-peak | $0.66 | $0.022 | $1.98 |
 | `deepseek-v4-pro` | peak | $1.32 | $0.044 | $3.96 |
 
-All values are USD per 1M tokens. Peak hours are **daily, Beijing time** 09:00–12:00 and 14:00–18:00, and peak price = off-peak × 2. The official peak schedule is enabled by default; set `prices.peak` only to override it:
+All values are USD per 1M tokens. On weekdays, peak hours are **Beijing time** 09:00–12:00 and 14:00–18:00, and peak price = off-peak × 2. From 2026-08-23 00:00 Beijing time, Saturday and Sunday are off-peak all day. The official schedule is enabled by default; set `prices.peak` only to override it:
 
 ```jsonc
 "prices": {
   "peak": {
     "multiplier": 2,
-    "hours": [["09:00", "12:00"], ["14:00", "18:00"]]   // half-open [start, end)
+    "hours": [["09:00", "12:00"], ["14:00", "18:00"]],   // half-open [start, end)
+    "weekendOffPeak": true
   }
 }
 ```
 
 - The per-model pro prices above are preconfigured under `prices.models."deepseek-v4-pro"` and apply automatically when `model` is set to `deepseek-v4-pro`
-- The `Usage.cost` reported by the tool reflects the computed estimate; cached hits report no cost (no API call happened). `details.usage` still keeps the first search's raw usage record for inspection
+- `weekendOffPeak` defaults to `true`; set it to `false` only when a custom price schedule should retain weekend peak pricing
+- The `Usage.cost` reported by the tool reflects the computed estimate using the request start time; cached hits report no cost (no API call happened). `details.usage` still keeps the first search's raw usage record for inspection
 
 ### Model support
 
