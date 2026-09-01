@@ -27,13 +27,13 @@ jobs:
           node-version: "26"
           registry-url: "https://registry.npmjs.org"
 
-      - run: npm install -g npm@latest # OIDC 需要 npm >= 11.5.1
+      - run: npm install -g npm@latest pnpm@11.18.0 # OIDC 需要 npm >= 11.5.1；pnpm 与 packageManager 保持一致
 
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run check
-      - run: npm run lint
-      - run: npm test
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm test
 
       # 防错发：tag 必须与 package.json 版本一致
       - name: Verify tag matches package version
