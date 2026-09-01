@@ -1,6 +1,6 @@
 # pi-deepseek-web-search 设计文档（Design Document）
 
-> 状态：**已实现**（P0–P7 全部落地，95 个单测通过）。本文档是项目架构与设计决策的权威记录；修订代码时若设计与实现冲突，以本文档为准并同步更新。
+> 状态：**已实现**（P0–P7 全部落地）。本文档是项目架构与设计决策的权威记录；修订代码时若设计与实现冲突，以本文档为准并同步更新。
 >
 > 相关文档：`AGENTS.md`（开发约定/命令/验证协议）、`README.md`（用户文档，中英双版）、`schema/*.json`（配置 Schema 生成产物，单一来源见 `src/config-schema.ts`）。
 
@@ -62,12 +62,20 @@ index.ts ──→ config.ts ──→ config-schema.ts（单一来源，被 con
 | D2 | **`SearchProvider` 端口**（`search(query, options)`，消费者拥有） | Rule of Three：端口成本 ~10 行，机制（注册表/判别联合配置）等第二个后端真实落地再建 |
 | D3 | **价格可配置 + 官方峰谷默认启用**：`prices` 以 USD / 1M tokens 为空闲价基座 + 默认 `peak { multiplier: 2, hours, weekendOffPeak }` | pi 的 `Usage.cost` 以 USD 显示；空闲价 × 2 = 高峰价，三类计费项一致；默认跟随官方工作日/周末规则 |
 | D4 | **峰谷按北京时间判定**（`Intl` 固定 `Asia/Shanghai`，不暴露时区配置） | 计费按北京时间；暴露时区只会配错。半开区间 `[start, end)` 消除边界歧义，官方生效时间前后规则可复现 |
-| D5 | **模型可配置 + per-model 价格表**（`prices.models`）+ **缓存键含 cwd/baseUrl/model** | v4-flash 与 v4-pro 均支持 Responses API；`models` 整块覆盖（防幽灵配置）；缓存键隔离项目/代理/模型 |
+| D5 | **模型名保持自由字符串 + per-model 价格表**（`prices.models`）+ **缓存键含 cwd/baseUrl/model** | 除 v4-flash/v4-pro 外，官方还提供 `deepseek-v4-flash-vision-exp`；插件只发送文本、不支持图片输入。vision 与 flash 同价，未命中模型覆盖时回退顶层价格；缓存键隔离项目/代理/模型 |
 | D6 | **配置单一来源**（TypeBox → `Static` 类型 + `Check`/`Errors` 校验 + 双语言 schema 生成） | 消除"手写 interface + 手写校验 + 手写 schema"三份漂移；生成产物提交 + 测试断言同步 |
 | D7 | **错误模型**：`SearchError` 判别联合（`code`），接口层只认领域错误 | 厂商错误类（`DeepSeekError`）不泄漏到接口层；`aborted` 特殊处理（返回取消说明，不标 isError） |
 | D8 | **命令输出**：状态查看走 `sendMessage(display: true)`（持久可见），快速反馈走 `notify` | 官方最佳实践：notify 会淡出且截断，不适合多行状态 |
 | D9 | **渲染纯函数** + 本地结构化类型（不依赖 `pi-agent-core`） | 只被 TUI 调用、无终端副作用；`pi-agent-core` 非直接依赖（pnpm 解析不到），用参数逆变兼容注册签名 |
 | D10 | **`Type.Unsafe` 替代 `StringEnum`** 定义枚举字段 | 实测 `StringEnum` 不透传自定义注释键（`descriptionZh`） |
+
+### 3.1 Responses API 响应兼容
+
+- 旧响应含 `message.phase` 时只拼接 `final_answer`，明确排除 `commentary`；只要任一 message 有 phase，就不回退到无 phase message
+- 正式响应全部不含 phase 时，取最后一个 role 为 `assistant` 或缺省、status 为 `completed` 或缺省的 message
+- 顶层 `completed` 或缺省状态正常返回；`failed` 作为领域错误抛出；非流式的 `in_progress` 与未知状态视为异常响应
+- `incomplete` 有部分答案时保留 usage/成本并显式警告，但不写 TTL 缓存；无可用答案时抛出 `response_incomplete`
+- HTTP 200 内的响应状态不重试；重试仍只针对 HTTP 5xx
 
 ## 4. 扩展点：新增搜索后端
 
@@ -144,7 +152,7 @@ peakMultiplier = 命中北京工作日高峰时段（9:00-12:00 / 14:00-18:00，
 | 层 | 覆盖 | 依赖 |
 | ---- | ------ | ------ |
 | 纯函数（format/config-schema） | 截断、组装、`computeCost`/`isPeakTime`/`resolvePrices`、schema 一致性、default 对齐 | 无 |
-| 适配器（deepseek） | 请求构造（含强制 tool_choice）、响应解析、错误映射、重试/超时/取消 | mock fetch |
+| 适配器（deepseek） | 请求构造（含强制 tool_choice）、有/无 phase 响应解析、顶层状态语义、错误映射、重试/超时/取消 | mock fetch |
 | 配置（config） | 优先级合并、TypeBox 校验等价性（18 条非法输入固化）、`$schema` 剥离、双语言 schema 防漂移 | 注入 env/readFile |
 | 端到端 | 真实 key 冒烟 + `pi install ./` + `/reload` | 人工（需 API key） |
 

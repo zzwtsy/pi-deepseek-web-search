@@ -15,7 +15,7 @@
 - **配置灵活**——环境变量 / 项目配置文件 / 全局配置文件（优先级从高到低）
 - **TTL 结果缓存**——TTL 内相同查询直接命中缓存，零成本
 - **真实成本上报**——token 单价可配置（美元/百万 tokens），默认启用官方峰谷定价；工具上报的 `Usage.cost` 为真实估算金额
-- **模型可选**——`deepseek-v4-flash`（默认）与 `deepseek-v4-pro` 均支持 Responses API，改配置即切换
+- **模型可选**——通过配置使用 `deepseek-v4-flash`（默认）、`deepseek-v4-pro` 或其他 Responses API 模型名
 - **生成式 JSON Schema**——配置文件定义单一来源（`src/config-schema.ts`），中/英两份 Schema 由它自动生成（见 [Schema](#schema)）
 
 ## 安装
@@ -64,8 +64,8 @@ pi install npm:pi-deepseek-web-search
 | ------ | ------ | -------- | ------ |
 | `apiKey` | string | — | DeepSeek API key（必填）。`DEEPSEEK_API_KEY` 可覆盖 |
 | `baseUrl` | string | `https://api.deepseek.com` | API 基础地址（自建代理时修改） |
-| `model` | string | `deepseek-v4-flash` | 模型名。`DEEPSEEK_MODEL` 可覆盖 |
-| `reasoningEffort` | `off`/`low`/`high`/`max` | `high` | `off` 关闭思考；`low`/`high`/`max` 控制思考量 |
+| `model` | string | `deepseek-v4-flash` | 自由字符串模型名。`DEEPSEEK_MODEL` 可覆盖 |
+| `reasoningEffort` | `off`/`low`/`high`/`max` | `high` | 项目默认 `high`；未传 effort 时 DeepSeek 默认启用思考 |
 | `maxOutputTokens` | int 1–384000 | `4096` | 回答最大输出 token 数（官方上限 384K） |
 | `timeoutMs` | int ≥ 1 | `30000` | 单次请求超时（毫秒） |
 | `cacheTtlMs` | int ≥ 1 | `300000` | 结果缓存 TTL（毫秒） |
@@ -109,7 +109,9 @@ pi install npm:pi-deepseek-web-search
 
 ### 模型支持
 
-`deepseek-v4-flash` 与 `deepseek-v4-pro` 均支持 Responses API；两个别名当前分别指向 DeepSeek-V4-Flash-0731 与 DeepSeek-V4-Pro-0813，调用名不变。默认使用 `deepseek-v4-flash`；设置 `"model": "deepseek-v4-pro"`（或 `DEEPSEEK_MODEL`）即可切换——价格经 `prices.models` 自动联动。
+`deepseek-v4-flash` 与 `deepseek-v4-pro` 均支持 Responses API。DeepSeek 还列出了实验性 vision 模型 `deepseek-v4-flash-vision-exp`；`model` 字段刻意保持自由字符串，因此无需更新 Schema 即可选择。本插件只发送文本查询，不支持图片输入。
+
+两个主模型别名当前分别指向 DeepSeek-V4-Flash-0731 与 DeepSeek-V4-Pro-0813，调用名不变；默认使用 `deepseek-v4-flash`。pro 价格经 `prices.models` 自动联动；vision 模型的官方价格与 flash 相同，因此直接使用现有顶层价格回退，无需单独覆盖。
 
 ## 使用
 

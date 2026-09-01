@@ -15,7 +15,7 @@ A [pi](https://github.com/earendil-works/pi) extension that gives any model in y
 - **Configurable** via env vars, project config file, or global config file (in that order of precedence)
 - **TTL result cache** — repeated identical queries within the TTL hit the cache and cost nothing
 - **Real cost reporting** — token prices are configurable (USD per 1M tokens), official peak/off-peak pricing is enabled by default, and the reported `Usage.cost` reflects the actual estimated spend
-- **Model selectable** — `deepseek-v4-flash` (default) and `deepseek-v4-pro` both support the Responses API; switch models via config
+- **Model selectable** — use `deepseek-v4-flash` (default), `deepseek-v4-pro`, or another Responses API model name via config
 - **Generated JSON Schema** — the config file definition is a single source of truth (`src/config-schema.ts`); English and Chinese schemas are generated from it (see [Schema](#schema))
 
 ## Install
@@ -64,8 +64,8 @@ Config is read from, in order of precedence (later sources override earlier ones
 | ----- | ---- | ------- | ----------- |
 | `apiKey` | string | — | DeepSeek API key (required). `DEEPSEEK_API_KEY` overrides |
 | `baseUrl` | string | `https://api.deepseek.com` | API base URL (change when using a proxy) |
-| `model` | string | `deepseek-v4-flash` | Model name. `DEEPSEEK_MODEL` overrides |
-| `reasoningEffort` | `off`/`low`/`high`/`max` | `high` | `off` disables thinking; `low`/`high`/`max` control the amount |
+| `model` | string | `deepseek-v4-flash` | Free-form model name. `DEEPSEEK_MODEL` overrides |
+| `reasoningEffort` | `off`/`low`/`high`/`max` | `high` | Project default is `high`; when effort is omitted, DeepSeek enables thinking by default |
 | `maxOutputTokens` | int 1–384000 | `4096` | Max output tokens (official limit: 384K) |
 | `timeoutMs` | int ≥ 1 | `30000` | Request timeout in ms |
 | `cacheTtlMs` | int ≥ 1 | `300000` | Result cache TTL in ms |
@@ -109,7 +109,9 @@ All values are USD per 1M tokens. On weekdays, peak hours are **Beijing time** 0
 
 ### Model support
 
-`deepseek-v4-flash` and `deepseek-v4-pro` both support the Responses API. The aliases currently point to DeepSeek-V4-Flash-0731 and DeepSeek-V4-Pro-0813; call names remain unchanged. `deepseek-v4-flash` is the default; set `"model": "deepseek-v4-pro"` (or `DEEPSEEK_MODEL`) to switch — prices switch automatically via `prices.models`.
+`deepseek-v4-flash` and `deepseek-v4-pro` both support the Responses API. DeepSeek also lists the experimental vision model `deepseek-v4-flash-vision-exp`; the `model` field is intentionally free-form, so it can be selected without a schema update. This plugin sends text queries only and does not support image input.
+
+The two primary aliases currently point to DeepSeek-V4-Flash-0731 and DeepSeek-V4-Pro-0813; call names remain unchanged. `deepseek-v4-flash` is the default. Pro prices switch automatically via `prices.models`; the vision model uses the same official pricing as flash, so the existing top-level price fallback applies without a dedicated override.
 
 ## Usage
 

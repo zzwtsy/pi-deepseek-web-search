@@ -162,7 +162,9 @@ export default function (pi: ExtensionAPI): void {
           details: { stage: "answering" },
         });
 
-        cache.set(cacheKey, result);
+        // 部分答案不可复用：相同查询必须重新请求，避免把截断内容固化到 TTL 生命周期内
+        if (result.incomplete !== true)
+          cache.set(cacheKey, result);
         const durationMs = Date.now() - startedAt;
 
         return {

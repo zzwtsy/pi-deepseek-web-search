@@ -70,7 +70,7 @@ describe("DeepSeekClient.search", () => {
     expect(body.tools).toEqual([{ type: "web_search" }]);
     expect(body.tool_choice).toEqual({ type: "web_search" });
     expect(body.max_output_tokens).toBe(4096);
-    expect(body.reasoning).toBeUndefined(); // 未传 effort → 省略字段，API 使用默认值（当前为 high）
+    expect(body.reasoning).toBeUndefined(); // 未传 effort → 省略字段，API 默认启用思考
   });
 
   it("构造时 model 透传到请求体", async () => {
@@ -125,6 +125,104 @@ describe("DeepSeekClient.search", () => {
     const result = await makeClient(fetchFn).search("q");
     expect(result.answer).toBe("");
     expect(result.actions).toEqual([]);
+  });
+
+  it("无 phase 时返回最后一个已完成的 assistant message", async () => {
+    const response = {
+      status: "completed",
+      output: [
+        { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "first" }] },
+        { type: "message", role: "user", status: "completed", content: [{ type: "output_text", text: "ignored user" }] },
+        { type: "message", role: "assistant", status: "in_progress", content: [{ type: "output_text", text: "ignored pending" }] },
+        { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "final" }] },
+      ],
+    };
+    const { fetchFn } = mockFetch([() => jsonResponse(200, response)]);
+    await expect(makeClient(fetchFn).search("q")).resolves.toMatchObject({ answer: "final" });
+  });
+
+  it("任一 message 有 phase 时不回退到无 phase message", async () => {
+    const response = {
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "unphased answer" }] },
+        { type: "message", phase: "commentary", content: [{ type: "output_text", text: "thinking" }] },
+      ],
+    };
+    const { fetchFn } = mockFetch([() => jsonResponse(200, response)]);
+    await expect(makeClient(fetchFn).search("q")).resolves.toMatchObject({ answer: "" });
+  });
+
+  it("缺省顶层 status 走正常兼容路径", async () => {
+    const response = {
+      output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
+    };
+    const { fetchFn } = mockFetch([() => jsonResponse(200, response)]);
+    await expect(makeClient(fetchFn).search("q")).resolves.toMatchObject({
+      answer: "ok",
+      incomplete: undefined,
+    });
+  });
+
+  it("failed 响应使用服务端消息抛出 response_failed，且不重试", async () => {
+    const { fetchFn, calls } = mockFetch([() => jsonResponse(200, {
+      status: "failed",
+      error: { message: "Generation failed" },
+    })]);
+    await expect(makeClient(fetchFn).search("q")).rejects.toMatchObject({
+      code: "response_failed",
+      message: "Generation failed",
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("incomplete 有部分答案时保留原因、动作、usage、model 和 id", async () => {
+    const response = {
+      id: "resp_partial",
+      model: "deepseek-v4-flash",
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      output: [
+        { type: "web_search_call", action: { type: "search", queries: ["latest news"] } },
+        { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "partial answer" }] },
+      ],
+      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+    };
+    const { fetchFn } = mockFetch([() => jsonResponse(200, response)]);
+    await expect(makeClient(fetchFn).search("q")).resolves.toEqual({
+      answer: "partial answer",
+      actions: [{ type: "search", queries: ["latest news"] }],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 20,
+        reasoningTokens: 0,
+        cachedTokens: 0,
+        totalTokens: 30,
+      },
+      model: "deepseek-v4-flash",
+      id: "resp_partial",
+      incomplete: true,
+      incompleteReason: "max_output_tokens",
+    });
+  });
+
+  it("incomplete 无可用答案时抛出 response_incomplete", async () => {
+    const { fetchFn } = mockFetch([() => jsonResponse(200, {
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      output: [],
+    })]);
+    await expect(makeClient(fetchFn).search("q")).rejects.toMatchObject({
+      code: "response_incomplete",
+      message: "DeepSeek response incomplete: max_output_tokens.",
+    });
+  });
+
+  it.each(["in_progress", "queued", "unknown_status"])("%s 顶层状态按异常响应处理", async (status) => {
+    const { fetchFn } = mockFetch([() => jsonResponse(200, { status, output: [] })]);
+    await expect(makeClient(fetchFn).search("q")).rejects.toMatchObject({
+      code: "response_failed",
+      message: `Unexpected DeepSeek response status: ${status}.`,
+    });
   });
 
   it("容错：未知 item 类型与字段缺失被忽略", async () => {

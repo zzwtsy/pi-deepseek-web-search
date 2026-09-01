@@ -34,13 +34,17 @@ export interface SearchUsage {
 
 /** 一次搜索的产物：综合回答 + 动作记录 */
 export interface SearchResult {
-  /** final_answer message 的拼接文本（可能为空串，此时说明响应异常） */
+  /** 最终回答文本（可能为空串，此时说明响应异常） */
   answer: string;
   /** 服务端执行的搜索动作序列 */
   actions: WebSearchAction[];
   usage?: SearchUsage;
   model: string;
   id?: string;
+  /** 响应仅包含部分答案，调用方必须显式提示且不得缓存 */
+  incomplete?: boolean;
+  /** 服务端提供的不完整原因 */
+  incompleteReason?: string;
 }
 
 /** 峰谷定价覆盖（可选）。官方定义：高峰 = 平时 × multiplier，时段按北京时间判断 */
@@ -89,6 +93,8 @@ export type SearchErrorCode
     | "timeout"
     | "aborted"
     | "invalid_request"
+    | "response_failed"
+    | "response_incomplete"
     | "unknown";
 
 /** 搜索失败的错误（code 为判别联合，上层据此区分取消/限流/余额等场景） */

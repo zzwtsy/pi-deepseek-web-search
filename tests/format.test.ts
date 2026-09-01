@@ -75,6 +75,23 @@ describe("buildToolContent", () => {
     expect(content).toContain("[truncated]");
     expect(truncated).toBe(true);
   });
+
+  it.each(["answer", "results"] as const)("%s 模式在截断后追加 incomplete 原因", (mode) => {
+    const { content, truncated } = buildToolContent(makeResult({
+      answer: "abcdefghij",
+      incomplete: true,
+      incompleteReason: "max_output_tokens",
+    }), { mode, maxChars: 5 });
+    expect(truncated).toBe(true);
+    expect(content).toContain("...[truncated]");
+    expect(content).toContain("[Response incomplete: max_output_tokens. The answer may be truncated.]");
+    expect(content.indexOf("[Response incomplete")).toBeGreaterThan(content.indexOf("...[truncated]"));
+  });
+
+  it("incomplete 无 reason 时省略原因", () => {
+    const { content } = buildToolContent(makeResult({ incomplete: true }), { mode: "results", maxChars: 1000 });
+    expect(content).toContain("[Response incomplete. The answer may be truncated.]");
+  });
 });
 
 describe("buildToolDetails", () => {
@@ -104,6 +121,22 @@ describe("buildToolDetails", () => {
     }, 100);
     expect(details.truncated).toBe(true);
     expect(details.answer).toContain("[truncated]");
+  });
+
+  it("传播 incomplete 标记与原因", () => {
+    const details = buildToolDetails(makeResult({
+      incomplete: true,
+      incompleteReason: "max_output_tokens",
+    }), {
+      query: "q",
+      mode: "answer",
+      cached: false,
+      durationMs: 10,
+    }, 1000);
+    expect(details).toMatchObject({
+      incomplete: true,
+      incompleteReason: "max_output_tokens",
+    });
   });
 });
 

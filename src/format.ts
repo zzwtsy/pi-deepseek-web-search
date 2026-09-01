@@ -16,6 +16,10 @@ export interface ToolDetails {
   cached: boolean;
   durationMs: number;
   model: string;
+  /** 响应仅包含部分答案 */
+  incomplete?: boolean;
+  /** 服务端提供的不完整原因 */
+  incompleteReason?: string;
   /** 本次搜索的 token 用量（缓存命中时沿用首次搜索的记录） */
   usage?: SearchUsage;
   /** 用户取消标记（取消时无 searches/answer，仅供渲染层区分取消态） */
@@ -45,6 +49,13 @@ export function formatActions(actions: WebSearchAction[]): string[] {
   return lines;
 }
 
+/** 给 LLM 与展开 TUI 的固定不完整响应提示 */
+export function formatIncompleteNotice(reason?: string): string {
+  return reason == null
+    ? "[Response incomplete. The answer may be truncated.]"
+    : `[Response incomplete: ${reason}. The answer may be truncated.]`;
+}
+
 /**
  * 组装返回给 LLM 的 content 文本。
  * answer 模式：完整回答 + 搜索动作记录；results 模式：仅压缩后的回答摘要。
@@ -53,17 +64,20 @@ export function buildToolContent(result: SearchResult, options: ToolContentOptio
   content: string;
   truncated: boolean;
 } {
+  const incompleteNotice = result.incomplete === true
+    ? `\n\n${formatIncompleteNotice(result.incompleteReason)}`
+    : "";
   if (result.answer.trim() === "") {
     return {
       content: `The search returned no usable answer. The search actions executed:${
-        result.actions.length > 0 ? `\n${formatActions(result.actions).join("\n")}` : " none"}`,
+        result.actions.length > 0 ? `\n${formatActions(result.actions).join("\n")}` : " none"}${incompleteNotice}`,
       truncated: false,
     };
   }
 
   if (options.mode === "results") {
     const { text, truncated } = truncate(result.answer, options.maxChars);
-    return { content: text, truncated };
+    return { content: `${text}${incompleteNotice}`, truncated };
   }
 
   const { text, truncated } = truncate(result.answer, options.maxChars);
@@ -71,7 +85,7 @@ export function buildToolContent(result: SearchResult, options: ToolContentOptio
   const content = actionLines.length > 0
     ? `${text}\n\nSearch actions:\n${actionLines.join("\n")}`
     : text;
-  return { content, truncated };
+  return { content: `${content}${incompleteNotice}`, truncated };
 }
 
 /** 组装 details（供 TUI 渲染层使用；answer 与 content 同源，均为截断后文本） */
@@ -91,6 +105,8 @@ export function buildToolDetails(
     durationMs: options.durationMs,
     model: result.model,
     usage: result.usage,
+    incomplete: result.incomplete,
+    incompleteReason: result.incompleteReason,
   };
 }
 

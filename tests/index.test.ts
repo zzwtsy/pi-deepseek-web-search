@@ -27,6 +27,15 @@ function successBody(): Record<string, unknown> {
   };
 }
 
+/** 包含部分答案的 /responses 响应体 */
+function incompleteBody(): Record<string, unknown> {
+  return {
+    ...successBody(),
+    status: "incomplete",
+    incomplete_details: { reason: "max_output_tokens" },
+  };
+}
+
 const DEFAULT_TEST_CONFIG: SearchConfig = {
   apiKey: "sk-test",
   baseUrl: "https://api.deepseek.com",
@@ -161,6 +170,23 @@ describe("deepseek_web_search execute", () => {
     expect(second.usage).toBeUndefined();
     expect((second.details as { cached: boolean }).cached).toBe(true);
     expect((second.details as { usage?: unknown }).usage).toEqual((first.details as { usage?: unknown }).usage);
+  });
+
+  it("incomplete 返回内容、details 与 usage，但同一查询不会缓存", async () => {
+    fetchFn.mockImplementation(async () => jsonResponse(200, incompleteBody()));
+    const first = await tool.execute("id", { query: "部分答案" }, undefined, undefined, makeCtx("/tmp/ds-incomplete"));
+    const second = await tool.execute("id", { query: "部分答案" }, undefined, undefined, makeCtx("/tmp/ds-incomplete"));
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(first.usage).toMatchObject({ input: 3355, output: 636, totalTokens: 7191 });
+    expect(first.details).toMatchObject({
+      cached: false,
+      incomplete: true,
+      incompleteReason: "max_output_tokens",
+    });
+    expect(second.details).toMatchObject({ cached: false, incomplete: true });
+    const content = first.content as Array<{ type?: string; text?: string }>;
+    expect(content[0]?.text).toContain("[Response incomplete: max_output_tokens. The answer may be truncated.]");
   });
 
   it("不同 cwd 下相同查询不共享缓存", async () => {

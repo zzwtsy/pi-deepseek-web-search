@@ -5,7 +5,8 @@ import { SearchError } from "./provider.js";
 // 实测要点（见 docs/api/Search.md）：
 //   - web_search_call.action.queries 是数组且混入 "ws_call_id=..." 内部参数，需过滤
 //   - open_page 的 url 带 "#ws_call_id=..." 后缀，需剥离
-//   - message 有 phase 字段：只取 "final_answer"，跳过 "commentary"（思考外显文本）
+//   - 旧响应的 message 有 phase 字段：只取 "final_answer"，跳过 "commentary"（思考外显文本）
+//   - 正式响应可能不含 phase：回退到最后一个已完成的 assistant message
 
 export interface DeepSeekClientOptions {
   /** 默认 https://api.deepseek.com */
@@ -73,27 +74,42 @@ function parseWebSearchCall(item: { action?: unknown }): WebSearchAction | undef
   return undefined;
 }
 
-/** 从响应 output 中提取最终回答（只取 phase=final_answer 的 message） */
-function extractFinalAnswer(output: unknown[]): string {
+/** 从 message content 中拼接 output_text */
+function extractMessageText(item: { content?: unknown }): string {
+  if (!Array.isArray(item.content))
+    return "";
   const parts: string[] = [];
-  for (const item of output) {
-    if (item == null || typeof item !== "object")
+  for (const part of item.content) {
+    if (part == null || typeof part !== "object")
       continue;
-    const it = item as { type?: unknown; phase?: unknown; content?: unknown };
-    if (it.type !== "message" || it.phase !== "final_answer")
-      continue;
-    if (!Array.isArray(it.content))
-      continue;
-    for (const part of it.content) {
-      if (part == null || typeof part !== "object")
-        continue;
-      const p = part as { type?: unknown; text?: unknown };
-      if (p.type === "output_text" && typeof p.text === "string") {
-        parts.push(p.text);
-      }
-    }
+    const p = part as { type?: unknown; text?: unknown };
+    if (p.type === "output_text" && typeof p.text === "string")
+      parts.push(p.text);
   }
   return parts.join("");
+}
+
+/** 从响应 output 中提取最终回答，兼容有 phase 的旧结构与无 phase 的正式结构 */
+function extractFinalAnswer(output: unknown[]): string {
+  const messages = output.filter((item): item is {
+    type: "message";
+    phase?: unknown;
+    role?: unknown;
+    status?: unknown;
+    content?: unknown;
+  } => item != null && typeof item === "object" && (item as { type?: unknown }).type === "message");
+
+  if (messages.some(message => message.phase !== undefined)) {
+    return messages
+      .filter(message => message.phase === "final_answer")
+      .map(extractMessageText)
+      .join("");
+  }
+
+  const message = messages.findLast(item =>
+    (item.role === undefined || item.role === "assistant")
+    && (item.status === undefined || item.status === "completed"));
+  return message == null ? "" : extractMessageText(message);
 }
 
 /** 解析 usage（容错：字段缺失时返回 undefined） */
@@ -268,6 +284,15 @@ export class DeepSeekClient implements SearchProvider {
 
   /** 解析 /responses 成功响应 */
   private parseResponse(json: Record<string, unknown>): SearchResult {
+    const status = json.status;
+    if (status === "failed") {
+      throw new SearchError(extractErrorMessage(json) ?? "DeepSeek response failed.", "response_failed");
+    }
+    if (status !== undefined && status !== "completed" && status !== "incomplete") {
+      const label = typeof status === "string" ? status : JSON.stringify(status);
+      throw new SearchError(`Unexpected DeepSeek response status: ${label}.`, "response_failed");
+    }
+
     const output = Array.isArray(json.output) ? json.output : [];
     const actions: WebSearchAction[] = [];
     for (const item of output) {
@@ -277,12 +302,31 @@ export class DeepSeekClient implements SearchProvider {
       if (action != null)
         actions.push(action);
     }
+    const answer = extractFinalAnswer(output);
+    const incompleteReason = status === "incomplete"
+      ? this.parseIncompleteReason(json.incomplete_details)
+      : undefined;
+    if (status === "incomplete" && answer.trim().length === 0) {
+      const suffix = incompleteReason == null ? "." : `: ${incompleteReason}.`;
+      throw new SearchError(`DeepSeek response incomplete${suffix}`, "response_incomplete");
+    }
+
     return {
-      answer: extractFinalAnswer(output),
+      answer,
       actions,
       usage: parseUsage(json.usage),
       model: typeof json.model === "string" ? json.model : this.model,
       id: typeof json.id === "string" ? json.id : undefined,
+      incomplete: status === "incomplete" ? true : undefined,
+      incompleteReason,
     };
+  }
+
+  /** 提取不完整响应原因，未知结构不阻断部分答案 */
+  private parseIncompleteReason(details: unknown): string | undefined {
+    if (details == null || typeof details !== "object")
+      return undefined;
+    const reason = (details as { reason?: unknown }).reason;
+    return typeof reason === "string" ? reason : undefined;
   }
 }

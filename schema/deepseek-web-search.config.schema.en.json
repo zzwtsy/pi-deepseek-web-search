@@ -20,7 +20,7 @@
       "default": "deepseek-v4-flash",
       "minLength": 1,
       "pattern": "^(?!\\s*$)",
-      "description": "Model name. Both deepseek-v4-flash and deepseek-v4-pro support the Responses API; pricing resolves via prices.models when switching models. Overridable via DEEPSEEK_MODEL."
+      "description": "Model name (free-form string). DeepSeek also supports deepseek-v4-flash-vision-exp, but this plugin sends text queries only and does not support image input. Pricing resolves via prices.models and falls back to top-level prices. Overridable via DEEPSEEK_MODEL."
     },
     "reasoningEffort": {
       "type": "string",
@@ -31,7 +31,7 @@
         "max"
       ],
       "default": "high",
-      "description": "Reasoning effort: off disables thinking, low/high/max control the amount; the official default is high. Overridable via DEEPSEEK_REASONING_EFFORT."
+      "description": "Reasoning effort: off disables thinking, while low/high/max control the amount. This project defaults to high; when effort is omitted, DeepSeek enables thinking by default. Overridable via DEEPSEEK_REASONING_EFFORT."
     },
     "maxOutputTokens": {
       "type": "integer",

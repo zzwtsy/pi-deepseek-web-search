@@ -5,7 +5,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { DeepSeekWebSearchDetails, DeepSeekWebSearchInput } from "./types.js";
 import { Text } from "@earendil-works/pi-tui";
-import { formatActions } from "./format.js";
+import { formatActions, formatIncompleteNotice } from "./format.js";
 
 /** 工具结果的结构化视图（与 AgentToolResult 兼容的最小面） */
 interface RenderableToolResult<T> {
@@ -50,17 +50,24 @@ export function renderResult(
     return new Text(theme.fg("error", `✗ ${message}`));
   }
 
-  // 折叠态：成功标记 + 摘要（搜索次数、回答字符数、截断标记）
+  // 折叠态：摘要（搜索次数、回答字符数、截断标记）；部分答案使用 warning 状态
   if (!options.expanded) {
     const searches = details?.searches?.length ?? 0;
     const chars = details?.answer?.length ?? 0;
     const truncated = details?.truncated ? " [truncated]" : "";
+    if (details?.incomplete) {
+      const reason = details.incompleteReason == null ? "" : ` (${details.incompleteReason})`;
+      return new Text(theme.fg("warning", `⚠ ${searches} searches · ${chars} chars · incomplete${reason}${truncated}`));
+    }
     return new Text(theme.fg("success", `✓ ${searches} searches · ${chars} chars${truncated}`));
   }
 
-  // 展开态：回答全文（渲染限长）+ 搜索动作列表（dim，复用 format.ts 的动作摘要逻辑）
+  // 展开态：部分响应警告 + 回答全文（渲染限长）+ 搜索动作列表
   const answer = (details?.answer ?? "").slice(0, EXPANDED_ANSWER_CHARS);
+  const warning = details?.incomplete
+    ? `${theme.fg("warning", formatIncompleteNotice(details.incompleteReason))}\n`
+    : "";
   const actionLines = formatActions(details?.searches ?? []).map(line => theme.fg("dim", line));
   const actionsText = actionLines.length > 0 ? `\n${actionLines.join("\n")}` : "";
-  return new Text(`${answer}${actionsText}`);
+  return new Text(`${warning}${answer}${actionsText}`);
 }
