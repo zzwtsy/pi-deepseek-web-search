@@ -43,7 +43,7 @@
     "typebox": "*"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.2.0",
+    "@antfu/eslint-config": "^10.0.0",
     "@types/node": "^26.1.2",
     "eslint": "^10.7.0",
     "typescript": "6.0.3",
